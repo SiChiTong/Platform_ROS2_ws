@@ -1,4 +1,8 @@
 
+# Jetson 빌드 시 주의사항 
+2021-10-17 기준 최신 버전에 해당하는 Jetpack 4.6에서는 ros2_galactic 빌드 시 에러가 발생함.
+Jetpack 4.6 버전 사용자의 경우 반드시 사전에 4.5.1로 다운그레이드를 진행하여야 함.
+
 # ROS2 빌드 사전 준비
 # 링크 : https://docs.ros.org/en/galactic/Installation/Ubuntu-Development-Setup.html       
 
@@ -44,29 +48,17 @@ python3 -m pip install -U \
   pytest \
   setuptools
 
-# Only ubuntu 18.04 !!!
+# Only in ubuntu 18.04 !!!
 python3 -m pip install -U importlib-metadata importlib-resources
 
 sudo rosdep init
 rosdep update
 
-# install cmake to latest version
-sudo apt-get install gpg wget
-wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
-
-echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
-
-sudo apt-get update
-sudo rm /usr/share/keyrings/kitware-archive-keyring.gpg
-sudo apt-get install kitware-archive-keyring
-
-sudo apt-get install cmake
-
 # QT development library
 sudo apt-get install qtquickcontrols2-5-dev qtscript5-dev
-sudo apt-get install -y qml-module-qtquick-controls2
+sudo apt-get install qml-module-qtquick-controls2
 
-# (optional)install open3d
+# (optional) install open3d
 python3 -m pip install open3d
 
 #################################### ROS2 빌드 전 주의사항 ####################################
@@ -82,7 +74,7 @@ ROS2는 Build를 진행하기 전 source로 가져온 다른 workspace에서 패
 # ws 불러오는 방법 : 빌드가 완료된 후에 ws를 불러오는게 가능함.
 source (ws 경로)/install/setup.bash
 
-# ex) source ~/Documents/GitHub/Project/source/workspaces/ros2_foxy/install/setup.bash
+# ex) source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/install/ros2_galactic/setup.bash
 
 # ws dependency 설치 방법 : 처음 빌드할 때 or 패키지 dependency가 변동되는 경우 실행
 rosdep install -y -r -q --from-paths src --ignore-src --rosdistro=${ROS_DISTRO} 
@@ -91,17 +83,19 @@ rosdep install -y -r -q --from-paths src --ignore-src --rosdistro=${ROS_DISTRO}
 
 # ROS2 소스 빌드 설치
 
-cd ~/Documents/GitHub/Project/source/workspaces/ros2_galactic
+cd ~/Documents/GitHub/Platform_ROS2_ws/workspaces/ros2_galactic
 rosdep install --from-paths src --ignore-src --rosdistro galactic -y --skip-keys "console_bridge fastcdr fastrtps rti-connext-dds-5.3.1 urdfdom_headers"
 colcon build --symlink-install
 
 # ROS2 예제 실행
+# ~/.bashrc에 추가한 경우 이후 과정에서 source ~~~는 생략해도 OK
 
 # Terminal 1
-source ~/Documents/GitHub/Project/source/workspaces/ros2_galactic/install/setup.bash
+source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/ros2_galactic/install/setup.bash 
 ros2 run demo_nodes_cpp talker
+
 # Terminal 2
-source ~/Documents/GitHub/Project/source/workspaces/ros2_galactic/install/setup.bash
+source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/ros2_galactic/install/setup.bash 
 ros2 run demo_nodes_cpp listener
 
 # ROS2 Talker, listener 실행 후 안되면 해당 명령어 실행
@@ -109,9 +103,9 @@ sudo ufw allow in proto udp to 224.0.0.0/4
 sudo ufw allow in proto udp from 224.0.0.0/4
 
 # self_drive_ws 빌드
-cd ~/Documents/GitHub/Project/source/workspaces/self_drive_ws
-rosdep install -y -r -q --from-paths src --ignore-src --rosdistro=${ROS_DISTRO} # 처음 빌드할 때 or 패키지
-source ~/Documents/GitHub/Project/source/workspaces/ros2_galactic/install/setup.bash # ~/.bashrc에 추가한 경우 생략해도 OK
+cd ~/Documents/GitHub/Platform_ROS2_ws/workspaces/self_drive_ws
+rosdep install -y -r -q --from-paths src --ignore-src --rosdistro=${ROS_DISTRO} 
+source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/ros2_galactic/install/setup.bash 
 colcon build --symlink-install
 
 # For librealsense
@@ -120,31 +114,35 @@ sudo cp ~/.99-realsense-libusb.rules /etc/udev/rules.d/99-realsense-libusb.rules
 # simulation_ws 빌드 방법
 # 링크 : http://gazebosim.org/tutorials?tut=install_ubuntu&cat=install
 
+# gazebo 설치
 sudo sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
 wget https://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
 sudo apt-get update
-sudo apt install libgazebo11-dev # gazebo 설치
+sudo apt install libgazebo11-dev 
 
-cd ~/Documents/GitHub/Project/source/workspaces/simulation_ws
-rosdep install -y -r -q --from-paths src --ignore-src --rosdistro --rosdistro=${ROS_DISTRO}
-source ~/Documents/GitHub/Project/source/workspaces/ros2_galactic/install/setup.bash # ~/.bashrc에 추가한 경우 생략해도 OK
-source ~/Documents/GitHub/Project/source/workspaces/self_drive_ws/install/setup.bash # ~/.bashrc에 추가한 경우 생략해도 OK
-colcon build --symlink-install # 빌드
+
+cd ~/Documents/GitHub/Platform_ROS2_ws/workspaces/simulation_ws
+rosdep install -y -r -q --from-paths src --ignore-src --rosdistro=${ROS_DISTRO}
+
+# 빌드
+source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/ros2_galactic/install/setup.bash 
+source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/self_drive_ws/install/setup.bash 
+colcon build --symlink-install 
 
 # workspace 불러오기
 # ~/.bashrc 최하단에 해당 내용 추가. 반드시 최하단에 놓아야됨.
-# Github Desktop으로 repository clone했을 때 ws 경로 기준
-
-source ~/Documents/GitHub/Project/source/workspaces/ros2_galactic/install/setup.bash
-source ~/Documents/GitHub/Project/source/workspaces/self_drive_ws/install/setup.bash
-source ~/Documents/GitHub/Project/source/workspaces/simulation_ws/install/setup.bash
+# Github Desktop으로 clone을 진행하였을 때 경로 기준
+source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/ros2_galactic/install/setup.bash
+source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/self_drive_ws/install/setup.bash
+source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/simulation_ws/install/setup.bash
 
 
 #################################### WS 수정 시 주의사항 #############################################
 
-현재 환경 이슈 최소화 및 설치 간편화를 위해 소스 빌드 방식을 채택하였음.
+환경 이슈 최소화 및 설치 간편화를 위해 소스 빌드 방식을 채택하였음.
 대부분의 패키지는 github에서 받은 패키지 초기 소스와 다르게 dependency에 해당하는 라이브러리를 함께 
 동봉하였으므로 패키지 재설치 or 최신 버전으로 변경 시 이를 유의하여야 함.
+추가된 패키지는 대부분 ~~_dependencies(ex. nav2_dependencies) 폴더에 들어있음.
 
 # 참고 : 현재 self_drive_ws에서 build 에러로 인해 법
 #        cartographer/mapping/3d/hybrid_grid_test.cc를 제거하였음
@@ -155,7 +153,7 @@ source ~/Documents/GitHub/Project/source/workspaces/simulation_ws/install/setup.
 
 #################################### 패키지 사용 시 주의사항 ##########################################
 
-# rqt 사용 중 not found ~~~/plagin.xml 에러 발생 시
+# rqt 사용 중 not found ~~~/plagin.xml 에러 발생 시 (주로 ROS2 버전 변경 시 발생함)
 rqt --force-discover
 
 #####################################################################################################
