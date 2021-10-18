@@ -19,6 +19,6 @@ aarch64 / Jetpack 4.6에서 빌드 실패, Jetpack 4.5.1에서 빌드 테스트 
 
 권장 소프트웨어 : Github Desktop (https://github.com/shiftkey/desktop/releases)
 
-New repository - clone 진행
+clone repository - URL - URL 입력 바에 https://github.com/parkdg44/Platform_ROS2_ws.git 입력 - clone
 
 <br/>
