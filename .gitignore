@@ -6,7 +6,6 @@
 **/*_ws/build/
 **/__pycache__/**
 **/cmake-build-debug/**
-**/bin_packages/**
 **/.idea/**
 **/.vscode/settings.json
 **/.vscode/c_cpp_properties.json
