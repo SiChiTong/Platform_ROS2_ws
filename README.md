@@ -1,11 +1,9 @@
 소스 빌드 사용 매뉴얼
 =================
 
-workspaces : ros2 foxy 버전의 ws
+workspaces : ros2 Galactic 버전 ws
 
-workspaces_dashing : ros2 dashing 전용 ws.     
-
->   ** 기본적으로 소스 빌드는 ubuntu 버전에 관계없이 동작함.
+workspaces_foxy : ros2 Foxy 버전 ws     
 
 <br/><br/>
 
@@ -17,8 +15,10 @@ aarch64 / Jetpack 4.6에서 빌드 실패, Jetpack 4.5.1에서 빌드 테스트 
 
 >   ** aarch64 : ARM 기반 CPU 아키텍쳐. 모든 NVIDIA Jetson 계열에서 채택하는 CPU 아키텍쳐임.
 
-<br/>
+<br/><br/>
 
 권장 소프트웨어 : Github Desktop (https://github.com/shiftkey/desktop/releases)
+
+New repository - clone 진행
 
 <br/>
