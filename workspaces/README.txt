@@ -129,13 +129,43 @@ source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/ros2_galactic/install/setu
 source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/self_drive_ws/install/setup.bash 
 colcon build --symlink-install 
 
-# workspace 불러오기
 # ~/.bashrc 최하단에 해당 내용 추가. 반드시 최하단에 놓아야됨.
 # Github Desktop으로 clone을 진행하였을 때 경로 기준
 source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/ros2_galactic/install/setup.bash
 source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/self_drive_ws/install/setup.bash
 source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/simulation_ws/install/setup.bash
 
+# (Optional) Cyclone DDS URI 경로 추가 (~/.bashrc)
+# 만약 ros2: using network interface enp... (udp/...) selected arbitrarily from: enp..., tun0 ~~
+# 에러가 발생하는 경우 MULTICAST 플래그를 가진 네트워크 인터페이스로 선택하여 설정해 주어야 함.
+
+export CYCLONEDDS_URI='<CycloneDDS><Domain><General><NetworkInterfaceAddress>(인터페이스)</></></></>'
+
+# ex.
+
+user@user:~$ ifconfig
+
+# Choose this.. (Look flags= ~~~~,"MULTICAST">)
+enp4s0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.0.xxx  netmask 255.255.255.0  broadcast 192.168.0.xxx
+        inet6 xxxx::xxxx:xxxx:xxxx:xxxx  prefixlen 64  scopeid 0x20<link>
+        ether 70:4d:7b:a3:3b:f3  txqueuelen 1000  (Ethernet)
+        RX packets 2813463  bytes 2573310320 (2.5 GB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 3824336  bytes 1395161691 (1.3 GB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 7822068  bytes 16193692285 (16.1 GB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 7822068  bytes 16193692285 (16.1 GB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+# In ~/.bashrc
+export CYCLONEDDS_URI='<CycloneDDS><Domain><General><NetworkInterfaceAddress>enp4s0</></></></>'
 
 #################################### WS 수정 시 주의사항 #############################################
 

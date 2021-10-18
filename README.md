@@ -3,9 +3,7 @@
 
 workspaces : ros2 Galactic 버전 ws
 
-workspaces_foxy : ros2 Foxy 버전 ws
-
-bin_packages : 테스트용 패키지, 기본 패키지 템플릿 등이 포함된 폴더
+bin_packages : 테스트용 패키지, Mbed 펌웨어, 기본 패키지 템플릿 등이 포함된 폴더
 
 <br/><br/>
 
