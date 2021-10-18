@@ -3,9 +3,7 @@
 
 workspaces : ros2 Galactic 버전의 ws
 
-workspaces_foxy : ros2 foxy 전용 ws.     
-workspaces_foxy : ros2 foxy 전용 ws.     
-
+workspaces_foxy : ros2 Foxy 전용 ws.     
 
 
 >   ** 기본적으로 소스 빌드는 ubuntu 버전에 관계없이 동작함.
@@ -19,7 +17,4 @@ aarch64 / Jetpack 4.6에서 빌드 실패, Jetpack 4.5.1에서 빌드 테스트 
 >   ** amd64 : 현존하는 대부분의 64비트 기반 CPU 아키텍쳐. Intel, AMD 계열 CPU를 포함함.
 
 >   ** aarch64 : ARM 기반 CPU 아키텍쳐. 모든 NVIDIA Jetson 계열에서 채택하는 CPU 아키텍쳐임.
-
-GUI / APP : 40%
->   다음 작업 : 핵심 기능 구현(지도 및 Status 표시 등)
 
