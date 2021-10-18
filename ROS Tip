@@ -1,0 +1,77 @@
+
+# ROS2
+ 
+# PYTHON 패키지 만들기
+ros2 pkg create --build-type ament_python --node-name my_node my_package
+
+# C++ 패키지 만들기
+ros2 pkg create --build-type ament_cmake --node-name my_node my_package
+
+
+# 터틀봇 실행 명령어
+export TURTLEBOT3_MODEL=burger
+ros2 launch turtlebot3_gazebo empty_world.launch.py
+
+# 터틀봇 Mapping 예제
+export TURTLEBOT3_MODEL=waffle
+ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
+ros2 launch turtlebot3_gazebo turtlebot3_house.launch.py
+
+ros2 launch turtlebot3_cartographer cartographer.launch.py use_sim_time:=True
+
+export TURTLEBOT3_MODEL=waffle
+ros2 run turtlebot3_teleop teleop_keyboard
+ros2 launch nav2_bringup navigation_launch.py
+
+ros2 run nav2_map_server map_saver_cli -f ~/map
+
+# 터틀봇 Navigation 예제
+export TURTLEBOT3_MODEL=waffle
+ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
+export TURTLEBOT3_MODEL=waffle
+ros2 launch turtlebot3_navigation2 navigation2.launch.py use_sim_time:=True map:=$HOME/map.yaml
+
+# Gazebo ROS2 plugin 동작시키는 방법
+ros2 launch gazebo_ros gazebo.launch.py
+
+# 특정 패키지만 빌드하는 방법
+colcon build --symlink-install --packages-select <package-name>
+
+
+export TURTLEBOT3_MODEL=my_robot
+ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
+ros2 launch laserscan_merger laserscan_merger.launch.py
+export TURTLEBOT3_MODEL=my_robot
+ros2 run turtlebot3_teleop teleop_keyboard
+ros2 launch turtlebot3_cartographer cartographer.launch.py use_sim_time:=True
+ros2 run nav2_map_server map_saver_cli -f ~/map
+
+export TURTLEBOT3_MODEL=waffle
+ros2 launch turtlebot3_navigation2 navigation2.launch.py use_sim_time:=True map:=$HOME/map.yaml
+
+colcon build --symlink-install --packages-select rtabmap_ros
+
+
+#colcon build 옵션
+
+colcon build ...
+
+ --cmake-args -D... The closing double dash is not necessary anymore. Any CMake arguments which match colcon arguments need to be  
+                    prefixed with a space. This can be done by quoting each argument with a leading space.
+
+ --force-cmake-configure (="--cmake-force-configure")
+
+ --make-flags
+   When using this option to pass a target name the substitution is: --cmake-target TARGET. When using this option to control the 
+   parallel execution with arguments like -jN the substitution is to use the environment variable MAKEFLAGS.
+
+ --use-ninja (="--cmake-args -G Ninja")
+
+
+
+
+
+
+
+
+

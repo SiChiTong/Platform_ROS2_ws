@@ -1,0 +1,10 @@
+# ninja log v5
+1	16590	1632899823	/home/park/Documents/GitHub/Project/source/workspaces/self_drive_ws/src/vision/detection_3d/detection_3d/pointnet2/build/temp.linux-x86_64-3.6/_ext_src/src/group_points_gpu.o	61b099db785adeda
+1	16595	1632899823	/home/park/Documents/GitHub/Project/source/workspaces/self_drive_ws/src/vision/detection_3d/detection_3d/pointnet2/build/temp.linux-x86_64-3.6/_ext_src/src/interpolate_gpu.o	bc8e3f330224ba93
+1	16760	1632899823	/home/park/Documents/GitHub/Project/source/workspaces/self_drive_ws/src/vision/detection_3d/detection_3d/pointnet2/build/temp.linux-x86_64-3.6/_ext_src/src/ball_query_gpu.o	f967da401a0b65
+1	17597	1632899824	/home/park/Documents/GitHub/Project/source/workspaces/self_drive_ws/src/vision/detection_3d/detection_3d/pointnet2/build/temp.linux-x86_64-3.6/_ext_src/src/sampling_gpu.o	be3fff6b9e992ac2
+0	24812	1632899831	/home/park/Documents/GitHub/Project/source/workspaces/self_drive_ws/src/vision/detection_3d/detection_3d/pointnet2/build/temp.linux-x86_64-3.6/_ext_src/src/sampling.o	94aa37fec849b96f
+0	24814	1632899831	/home/park/Documents/GitHub/Project/source/workspaces/self_drive_ws/src/vision/detection_3d/detection_3d/pointnet2/build/temp.linux-x86_64-3.6/_ext_src/src/interpolate.o	5b9d0045217d9494
+0	24855	1632899832	/home/park/Documents/GitHub/Project/source/workspaces/self_drive_ws/src/vision/detection_3d/detection_3d/pointnet2/build/temp.linux-x86_64-3.6/_ext_src/src/ball_query.o	4c4ca7c0f168785d
+0	25477	1632899832	/home/park/Documents/GitHub/Project/source/workspaces/self_drive_ws/src/vision/detection_3d/detection_3d/pointnet2/build/temp.linux-x86_64-3.6/_ext_src/src/group_points.o	d00443f441c697f4
+0	26726	1632899833	/home/park/Documents/GitHub/Project/source/workspaces/self_drive_ws/src/vision/detection_3d/detection_3d/pointnet2/build/temp.linux-x86_64-3.6/_ext_src/src/bindings.o	b098aa3347b4e11d
