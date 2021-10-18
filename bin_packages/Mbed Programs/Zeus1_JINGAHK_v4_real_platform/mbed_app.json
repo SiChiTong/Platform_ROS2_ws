@@ -1,0 +1,8 @@
+{
+    "target_overrides": {
+        "*": {
+            "target.c_lib": "std",
+            "target.printf_lib": "std"
+        }
+    }
+}
