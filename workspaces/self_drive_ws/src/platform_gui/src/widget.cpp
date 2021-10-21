@@ -566,6 +566,9 @@ void Widget::on_btn_sucktion_released()
 
 }
 
+
+
+
 // -------------------- ROS2 ------------------------- //
 
 void Widget::init_ros2(int argc, char *argv[])
@@ -581,16 +584,14 @@ void Widget::init_ros2(int argc, char *argv[])
 void Widget::callback(cv::Mat mat)
 {
   cv::cvtColor(mat, mat, cv::COLOR_RGB2BGRA); //COLOR_BGR2RGB doesn't behave so use RGBA
-
+  // RCLCPP_INFO(node_ptr->get_logger(),"get image!");
   QImage image_result;
   mat_to_qimage(mat, image_result);
   QGraphicsScene* scene = new QGraphicsScene();
   QGraphicsPixmapItem* item = new QGraphicsPixmapItem(QPixmap::fromImage(image_result));
-  scene->addItem(item);  
+  scene->addItem(item);
   ui->graphicsView->setScene(scene);
 }
-
-// -------------------- ROS2 ------------------------- //
 
 void Widget::on_waypoint_1_clicked()
 {
@@ -654,3 +655,5 @@ void Widget::on_Pump_OFF_clicked()
   msg.data = "<W:0;>";
   this->node_ptr->pub_cmd_W_Br->publish(msg);
 }
+
+// -------------------- ROS2 ------------------------- //

@@ -19,8 +19,7 @@ void platform_node::imgCallback(const sensor_msgs::msg::Image::SharedPtr msg) co
   cv_bridge::CvImagePtr img_ptr;
   try {
     img_ptr = cv_bridge::toCvCopy(msg, msg->encoding);    
-    this->callback_node(img_ptr->image);
-    RCLCPP_INFO(this->get_logger(),"get image!");
+    this->callback_node(img_ptr->image);    
   }
   catch (cv_bridge::Exception& e) {
     RCLCPP_INFO(this->get_logger(),"%s",e.what());

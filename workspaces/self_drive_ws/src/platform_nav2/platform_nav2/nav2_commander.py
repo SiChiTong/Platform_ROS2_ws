@@ -1,17 +1,6 @@
 #! /usr/bin/env python3
-# Copyright 2021 Samsung Research America
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+
+from datetime import datetime
 import time
 
 from geometry_msgs.msg import PoseStamped, Pose, PoseWithCovarianceStamped
@@ -67,13 +56,17 @@ def create_pose_from_x_y_yaw(x, y, yaw, clock: rclpy.node.Clock):
     return pose
 
 class platformNavigator(BasicNavigator):
-    def __init__(self):
+    def __init__(self, init_x=0.0, init_y=0.0, init_yaw=0.0):
         super().__init__()
+
+        self.initial_pose = create_pose_from_x_y_yaw(init_x, init_y, init_yaw, self.get_clock())
 
         self.declare_parameter('waypoints',
                                "[[-14.75,-0.5,0.0], [1.25,0.0,0.0], [10.30,0.0,0.0], [29.75,0.05,0.0], [29.75,8.30,0.0]]")
 
         self.waypoints = []
+        self.waypoint_target = None
+
         try:
             exec("self.waypoints = "+self.get_parameter('waypoints').value)
         except:
@@ -81,14 +74,23 @@ class platformNavigator(BasicNavigator):
             self.waypoints = []
 
         self.get_maps_srv = self.create_client(GetMap, '/map_server/map')
+
         self.buffer = Buffer(node=self)
         self.tf_listener = TransformListener(self.buffer, self)
         self.pub_map_img = self.create_publisher(Image, '/processed_map',1)
         self.sub_waypoint = self.create_subscription(Int8, "/waypoint", self.callback_waypoint, 5)
-        self.waypoint_target = None
 
-        self.map = ProcessedMap(OccupancyGrid())
+        # self.map = ProcessedMap(OccupancyGrid())
+        self.map = None
         self.cost_map = ProcessedMap(Costmap())
+
+    def waitUntilNav2Active(self):
+        """Block until the full navigation system is up and running."""
+        self._waitForNodeToActivate('amcl')
+        self._waitForInitialPose()
+        self._waitForNodeToActivate('bt_navigator')
+        self.info('Nav2 is ready for use!')
+        return
 
     def get_map_ros2(self):
         req = GetMap.Request()
@@ -97,20 +99,6 @@ class platformNavigator(BasicNavigator):
         map = self.result_future_map.result().map
         return map
 
-    def waitUntilNav2Active(self):
-        """Block until the full navigation system is up and running."""
-        self._waitForNodeToActivate('amcl')
-        # self._waitForInitialPose()
-        self._waitForNodeToActivate('bt_navigator')
-        self.info('Nav2 is ready for use!')
-        return
-
-    def set_map(self, map: OccupancyGrid, ratio_x=1.0, ratio_y=1.0):
-        self.map = ProcessedMap(map, ratio_x=ratio_x, ratio_y=ratio_y)
-
-    def set_cost_map(self, map: Costmap, ratio_x=1.0, ratio_y=1.0):
-        self.map = ProcessedMap(map, ratio_x=ratio_x, ratio_y=ratio_y)
-
     def get_robot_base(self, target:str):
         try:
             tf = self.buffer.lookup_transform("map", target, rclpy.time.Time())  # Blocking
@@ -118,10 +106,33 @@ class platformNavigator(BasicNavigator):
         except Exception as e:
             return None
 
+    def set_map(self, map: OccupancyGrid, ratio_x=1.0, ratio_y=1.0):
+        self.map = ProcessedMap(map, ratio_x=ratio_x, ratio_y=ratio_y)
+
+    def set_cost_map(self, map: Costmap, ratio_x=1.0, ratio_y=1.0):
+        self.cost_map = ProcessedMap(map, ratio_x=ratio_x, ratio_y=ratio_y)
+
+    def update_map_data(self):
+        if(self.map is None):
+            self.set_map(self.get_map_ros2(),ratio_x=1.25,ratio_y=1.25)
+        # costmap = ProcessedMap(self.getGlobalCostmap())
+
+        robot_tf = self.get_robot_base("base_link")
+        if robot_tf is not None:
+            self.map.set_robot_base_tf(robot_tf)
+            # costmap.set_robot_base_tf(robot_tf)
+
+        # self.cost_map = costmap
+
     def callback_waypoint(self, msg: Int8):
         waypoint = self.waypoints[msg.data - 1]
         waypoint_pose = create_pose_from_x_y_yaw(waypoint[0], waypoint[1], waypoint[2], clock=self.get_clock())
+
         self.waypoint_target = waypoint_pose
+
+        if self.waypoint_target != None:
+            self.map.set_waypoint_pose(self.waypoint_target)
+            self.cost_map.set_waypoint_pose(self.waypoint_target)
 
 class ProcessedMap():
     def __init__(self, map, ratio_x=1.0, ratio_y=1.0):
@@ -213,38 +224,37 @@ class ProcessedMap():
             x_result,y_result = self.np_to_position(x,y)
             print(f'x: {x_result:.2f} / y: {y_result:.2f}')
 
+class rate_mine():
+    def __init__(self, rate):
+        self.rate = rate
+        self.dt0 = datetime.now()
+
+    def sleep(self):
+        process_time = (datetime.now() - self.dt0).total_seconds()
+        period = 1.0 / self.rate
+        if (process_time <= period):
+            time.sleep(period - process_time)
+        self.dt0 = datetime.now()
+
 def main():
     rclpy.init()
+    navigator = platformNavigator(init_x=0.0, init_y=0.0, init_yaw=0.0)
 
-    navigator = platformNavigator()
     is_goal_first = True
-
-    # Set our demo's initial pose
-    # initial_pose = create_pose_from_x_y_yaw(0., 0., 0., navigator.get_clock())
-    # navigator.setInitialPose(initial_pose)
-
-    # Activate navigation, if not autostarted. This should be called after setInitialPose()
-    # or this will initialize at the origin of the map and update the costmap with bogus readings.
-    # If autostart, you should `waitUntilNav2Active()` instead.
-    # navigator.lifecycleStartup()
 
     # Wait for navigation to fully activate, since autostarting nav2
     navigator.get_logger().info("Wait for Navigation2...")
     navigator.waitUntilNav2Active()
     cvbridge = cv_bridge.CvBridge()
 
-    map = ProcessedMap(navigator.get_map_ros2(), 0.8, 0.8)
-    # global_costmap = ProcessedMap(navigator.getGlobalCostmap(), 1.5, 1.5)
-    # global_costmap.set_robot_base_tf(robot_tf)
+    rate = rate_mine(10.0)
 
     while rclpy.ok():
-        robot_tf = navigator.get_robot_base("base_link")
 
-        if robot_tf is not None:
-            map.set_robot_base_tf(robot_tf)
         # TODO: CPP 구현
 
-        viz_map = map.visualization()
+        navigator.update_map_data()
+        viz_map = navigator.map.visualization()
         msg_map = cvbridge.cv2_to_imgmsg(viz_map)
         navigator.pub_map_img.publish(msg_map)
 
@@ -253,15 +263,13 @@ def main():
                 is_goal_first = False
             else:
                 navigator.cancelNav()
-
             navigator.goToPose(navigator.waypoint_target)
-            map.set_waypoint_pose(navigator.waypoint_target)
             navigator.waypoint_target = None
             navigator.get_logger().info("Running...")
 
         k = cv2.waitKey(1) & 0xFF
-        time.sleep(0.05)
-        rclpy.spin_once(navigator, timeout_sec=0.5)
+        rclpy.spin_once(navigator, timeout_sec=0.1)
+        rate.sleep()
 
         if k == 27:
             break

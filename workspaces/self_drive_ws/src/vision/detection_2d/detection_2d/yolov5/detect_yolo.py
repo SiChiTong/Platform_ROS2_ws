@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import math
 import os
 
 import std_msgs.msg
@@ -36,6 +36,8 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from pydoc import locate
 from datetime import datetime
+
+from costmap_converter_msgs.msg import ObstacleArrayMsg, ObstacleMsg
 
 def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True, stride=32):
     # Resize and pad image while meeting stride-multiple constraints
@@ -91,7 +93,7 @@ def view(img):
     cv2.waitKey(1)
 
 def detect(device, model, img_raw: np.ndarray, names, colors,
-           imgsz=[448, 640], conf_thres=0.01, iou_thres=0.25, classes=None, agnostic_nms=False, isVisualized = True, verbose = False):
+           imgsz=[448, 640], conf_thres=0.01, iou_thres=0.25, classes=None, agnostic_nms=False, isVisualized = True, verbose = False, Rsample = True):
 
     img_raw = np.expand_dims(img_raw, axis=0)
 
@@ -200,9 +202,27 @@ class o3d_manager:
         # for a in self.bbox_prev:
         #     self.vis.update_geometry(a)
 
+class rate_mine():
+    def __init__(self, rate):
+        self.rate = rate
+        self.dt0 = datetime.now()
+
+    def sleep(self):
+        process_time = (datetime.now() - self.dt0).total_seconds()
+        period = 1.0 / self.rate
+        if (process_time <= period):
+            time.sleep(period - process_time)
+        self.dt0 = datetime.now()
+
 class detection_node(Node):
     def __init__(self, model, device):
         super().__init__("yolo")
+
+        self.declare_parameter("show_running_time", value=True)
+        self.show_FPS = self.get_parameter('show_running_time').value
+        self.declare_parameter("rate", value=10.0)
+
+        self.rate_pub = rate_mine(self.get_parameter('rate').value)
         self.model = model
 
         self.names = model.module.names if hasattr(model, 'module') else model.names  # get class names
@@ -226,28 +246,15 @@ class detection_node(Node):
         img: np.ndarray = self.unpack(msg.color)
         pcd: np.ndarray = self.unpack(msg.depth_to_xyz)
 
-        # pcd_img = np.concatenate((pcd, img), axis=2)
-        # ab = ~np.isnan(pcd_img.reshape([-1, 6]))[:,0]
-        # aab = pcd_img.reshape([-1, 6])[ab]
-
-        # point_pcd_np = aab[:, 0:3]
-        # color_pcd_np = (aab[:, 3:6] / 255.0)[..., ::-1]
-
-        # pcd_o3d = o3d.geometry.PointCloud()
-        # pcd_o3d.points = o3d.utility.Vector3dVector(point_pcd_np)
-        # pcd_o3d.colors = o3d.utility.Vector3dVector(color_pcd_np)
-
         pcd_total = o3d.geometry.PointCloud()
         bbox_total = []
 
         with torch.no_grad():
+
             # result : [label, point_Left_Up, point_Right_Down, confidence]
 
             result = detect(self.device, self.model, img, self.names, self.colors,
-                            # imgsz=[512, 896], conf_thres=0.2, iou_thres=0.3, isVisualized=False)
                             imgsz=[512, 640], conf_thres=0.2, iou_thres=0.3, isVisualized=True)
-
-            vis_3d = []
 
             pcd_img = np.concatenate((pcd, img), axis=2)
 
@@ -257,22 +264,58 @@ class detection_node(Node):
                 ab = ~np.isnan(pcd_img_bbox.reshape([-1, 6]))[:,0]
                 aab = pcd_img_bbox.reshape([-1, 6])[ab]
 
-                point_pcd_np = aab[:, 0:3]
-                color_pcd_np = (aab[:, 3:6] / 255.0)[..., ::-1]
-
-                pcd_bbox = o3d.geometry.PointCloud()
-                pcd_bbox.points = o3d.utility.Vector3dVector(point_pcd_np)
-                pcd_bbox.colors = o3d.utility.Vector3dVector(color_pcd_np)
-
-                vis_3d.append(pcd_bbox)
-
                 try:
-                    labels = np.asarray(pcd_bbox.cluster_dbscan(eps=0.01, min_points=10, print_progress=False))
-                    label_max = np.argmax(np.bincount(labels + 1)) - 1
-                    labels_flag = [True if a == label_max else False for a in labels]
+                    ratio_nan = (np.size(ab) - np.count_nonzero(ab)) / np.size(ab)
+                    if(ratio_nan>0.8): raise Exception("Too many Nan value..(skip)")
+
+                    point_pcd_np = aab[:, 0:3]
+                    color_pcd_np = (aab[:, 3:6] / 255.0)[..., ::-1]
+
+                    pcd_bbox = o3d.geometry.PointCloud()
+
+                    pcd_bbox.points = o3d.utility.Vector3dVector(point_pcd_np)
+                    pcd_bbox.colors = o3d.utility.Vector3dVector(color_pcd_np)
+
+                    pcd_bbox = pcd_bbox.random_down_sample(sampling_ratio=0.02)
+                    labels = np.asarray(pcd_bbox.cluster_dbscan(eps=0.2, min_points=8, print_progress=False))
+                    labels_count = np.bincount(labels + 1)
+                    label_sort = np.argsort(labels_count)[::-1] - 1
+
+                    # if (labels_count[label_max + 1] <= 50):
+                    #     raise Exception("Too much small cluster!")
+                    # label_second = label_sort[1]
+                    # labels_flag_second = [True if a == label_second else False for a in labels]
+                    # pcd_second = np.asarray(pcd_bbox.points).reshape([-1, 3])[labels_flag_second]
+
+                    if label_sort[0] == -1:
+                        label_max = label_sort[1]
+                    else:
+                        label_max = label_sort[0]
+
+                    # label_max_ratio = labels_count[label_max - 1] / np.sum(labels_count)
+                    # if(label_max_ratio>0.2): raise Exception("Too small cluster..(skip)")
+
+                    labels_flag_max = [True if a == label_max else False for a in labels]
+                    pcd_max = np.asarray(pcd_bbox.points).reshape([-1, 3])[labels_flag_max]
+
+                    pcd_result_np = pcd_max
+
+                    # pcd_max_mean = np.mean(pcd_max,axis=0)
+                    # pcd_second_mean = np.mean(pcd_second,axis=0)
+                    # sqrt(x*x + y*y + z*z)
+                    # pcd_max_dist =  math.sqrt(pcd_max_mean[0] * pcd_max_mean[0] +
+                    #                           pcd_max_mean[1] * pcd_max_mean[1] +
+                    #                           pcd_max_mean[2] * pcd_max_mean[2])
+                    #
+                    # pcd_second_dist =  math.sqrt(pcd_second_mean[0] * pcd_second_mean[0] +
+                    #                              pcd_second_mean[1] * pcd_second_mean[1] +
+                    #                              pcd_second_mean[2] * pcd_second_mean[2])
+                    # if (pcd_max_dist > pcd_second_dist):
+                    #     pcd_result_np = pcd_second
+                    # else:
+                    #     pcd_result_np = pcd_max
 
                     pcd_result = o3d.geometry.PointCloud()
-                    pcd_result_np = point_pcd_np[labels_flag]
                     pcd_result_color = (np.asarray(self.colors[self.names.index(a[0])]) / 255.0)[::-1]
 
                     pcd_result.points = o3d.utility.Vector3dVector(pcd_result_np)
@@ -289,8 +332,6 @@ class detection_node(Node):
                     continue
 
         self.vis_o3d.pcd_show(pcd_total, bbox=bbox_total)
-
-        # self.vis_o3d.pcd_show(pcd_o3d)
         # view(img)
 
         msg_str = std_msgs.msg.String()
@@ -298,7 +339,10 @@ class detection_node(Node):
         self.pub_check.publish(msg_str)
 
         process_time = datetime.now() - dt0
-        print("Running Time(ms) = {0:.3f}".format(process_time.total_seconds() * 1000.0))
+        self.rate_pub.sleep()
+        if(self.show_FPS):
+            # print("FPS = {0}".format(1/process_time.total_seconds()))
+            print("Running Time(ms) = {0:.3f}".format(process_time.total_seconds() * 1000.0))
 
     def print_info(self, msg: str):
         self.get_logger().info(msg)

@@ -19,6 +19,11 @@ SHARE_DIR = get_package_share_directory('pcd_manager')
 class pcd_manager_node(Node):
     def __init__(self):
         super().__init__('pcd_manager_node')
+        self.declare_parameter("show_running_time", value=False)
+        self.declare_parameter("rate", value=20.0)
+
+        self.show_FPS = self.get_parameter('show_running_time').value
+        self.rate_pub = self.get_parameter('rate').value
         self.init_realsense()
         self.pub_rgbd = self.create_publisher(RGBDImage, "/pcd_realsense", 10)
 
@@ -145,6 +150,16 @@ class o3d_manager:
 
         return depth_to_xyz
 
+def cv2_show_only_depth(depth_img):
+    # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
+    # depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
+
+
+    # Show images
+    cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
+    cv2.imshow('RealSense', depth_img)
+    cv2.waitKey(1)
+
 def cv2_show(depth_color,color):
     # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
     # depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
@@ -163,6 +178,18 @@ def cv2_show(depth_color,color):
     cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
     cv2.imshow('RealSense', images)
     cv2.waitKey(1)
+
+class rate_mine():
+    def __init__(self, rate):
+        self.rate = rate
+        self.dt0 = datetime.now()
+
+    def sleep(self):
+        process_time = (datetime.now() - self.dt0).total_seconds()
+        period = 1.0 / self.rate
+        if (process_time <= period):
+            time.sleep(period - process_time)
+        self.dt0 = datetime.now()
 
 if __name__ == "__main__":
     # Configure depth and color streams
@@ -205,6 +232,8 @@ if __name__ == "__main__":
     if is_o3d_imported:
         pcd_manager_o3d = o3d_manager(isVisualize=True)
 
+    rate = rate_mine(node.rate_pub)
+
     while True:
         dt0 = datetime.now()
         # Wait for a coherent pair of frames: depth and color
@@ -231,10 +260,11 @@ if __name__ == "__main__":
         depth_to_xyz = pcd_manager_o3d.rgbd_to_pcd(depth_intrinsics, depth_image, color_image, vis=False)
 
         node.publish_pcd(depth_to_xyz, color_image)
-
         process_time = datetime.now() - dt0
 
-        print("FPS = {0}".format(1/process_time.total_seconds()))
+        rate.sleep()
+        if node.show_FPS:
+            print("Running Time(ms) = {0:.3f}".format(process_time.total_seconds() * 1000.0))
 
         # ----------------------------------------- cv2 ---------------------------------------- #
-        # cv2_show(depth_colormap, color_image)
+        cv2_show_only_depth(depth_colormap)

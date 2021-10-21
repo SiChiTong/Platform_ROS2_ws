@@ -35,12 +35,12 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     x_pose = LaunchConfiguration('x_pose', default='-2.0')
-    y_pose = LaunchConfiguration('y_pose', default='-0.5')
+    y_pose = LaunchConfiguration('y_pose', default='-1.5')
 
     turtlebot_launch_file_dir = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
     pkg_gazebo_ros = get_package_share_directory('gazebo_ros')
 
-    map_file = "map.yaml"
+    map_file = "map_house.yaml"
     map_dir = LaunchConfiguration('map_file',
                                   default=os.path.join(package_prefix, 'map', map_file))
 
@@ -129,7 +129,8 @@ def generate_launch_description():
     ld.add_action(robot_state_publisher_cmd)
     ld.add_action(spawn_turtlebot_cmd)
     ld.add_action(nav2_cmd)
-    ld.add_action(gui_cmd)
     ld.add_action(rviz_node)
+
+    ld.add_action(gui_cmd)
 
     return ld

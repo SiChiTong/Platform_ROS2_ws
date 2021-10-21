@@ -33,6 +33,7 @@ install(PROGRAMS
 
 set(DIRECTORIES_TARGET
   weights
+  launch
   )
 
 install(DIRECTORY
