@@ -32,4 +32,4 @@ sudo apt-get install -y \
     liblua5.2-dev \
     libsuitesparse-dev \
     ninja-build \
-    python-sphinx
+    python3-sphinx

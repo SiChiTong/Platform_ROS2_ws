@@ -55,8 +55,7 @@ sudo rosdep init
 rosdep update
 
 # QT development library
-sudo apt-get install qtquickcontrols2-5-dev qtscript5-dev
-sudo apt-get install qml-module-qtquick-controls2
+sudo apt-get install qtquickcontrols2-5-dev qtscript5-dev libqt5serialport5-dev qml-module-qtquick-controls2
 
 # (optional) install open3d
 python3 -m pip install open3d
@@ -105,10 +104,14 @@ sudo ufw allow in proto udp from 224.0.0.0/4
 # self_drive_ws 빌드
 cd ~/Documents/GitHub/Platform_ROS2_ws/workspaces/self_drive_ws
 rosdep install -y -r -q --from-paths src --ignore-src --rosdistro=${ROS_DISTRO} 
+sudo apt-get install python3-sphinx
+
 source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/ros2_galactic/install/setup.bash 
 colcon build --symlink-install
 
 # For librealsense
+source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/self_drive_ws/install/setup.bash 
+realsense-viewer
 sudo cp ~/.99-realsense-libusb.rules /etc/udev/rules.d/99-realsense-libusb.rules && sudo udevadm control --reload-rules && udevadm trigger
 
 # simulation_ws 빌드 방법

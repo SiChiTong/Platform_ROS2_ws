@@ -206,6 +206,10 @@ install(FILES "${CMAKE_BINARY_DIR}/wrappers/python/pyrealsense2ConfigVersion.cma
     DESTINATION ${CMAKECONFIG_PY_INSTALL_DIR}
 )
 
+install(FILES pyrealsense2/__init__.py
+    DESTINATION ${PYTHON_INSTALL_DIR}
+)
+
 target_include_directories(pybackend2 PRIVATE ../../src)
 target_include_directories(pyrealsense2 PRIVATE ../../src)
 

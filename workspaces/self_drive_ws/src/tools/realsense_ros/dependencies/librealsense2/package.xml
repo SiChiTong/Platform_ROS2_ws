@@ -34,6 +34,7 @@
   <build_depend>udev</build_depend>
   <build_depend>libxinerama-dev</build_depend>
   <build_depend>libxcursor-dev</build_depend>
+  <build_depend>libxi-dev</build_depend>
 
   <export>
     <build_type>cmake</build_type>

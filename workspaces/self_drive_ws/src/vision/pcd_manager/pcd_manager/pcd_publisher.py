@@ -19,7 +19,7 @@ SHARE_DIR = get_package_share_directory('pcd_manager')
 class pcd_manager_node(Node):
     def __init__(self):
         super().__init__('pcd_manager_node')
-        self.declare_parameter("show_running_time", value=False)
+        self.declare_parameter("show_running_time", value=True)
         self.declare_parameter("rate", value=20.0)
 
         self.show_FPS = self.get_parameter('show_running_time').value

@@ -15,7 +15,6 @@
   <build_depend>sensor_msgs</build_depend>
   <build_depend>image_transport</build_depend>
 
-  <build_depend>libqt5serialport5-dev</build_depend>
   <build_depend>qtbase5-dev</build_depend>
   <build_depend>qt5-qmake</build_depend>
   <exec_depend>libqt5-core</exec_depend>
