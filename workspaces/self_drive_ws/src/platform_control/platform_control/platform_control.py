@@ -27,10 +27,10 @@ class PlatformControlNode(Node):
     def __init__(self, port: str):
         super().__init__('platform_node')
 
-        self.declare_parameter('mode',"NULL")
+        self.declare_parameter('mode',"NAVIGATION")
 
         self.ser = self.connect_ser(port)
-        self.isRealPlatform = False
+        self.isRealPlatform = True
 
         if (self.ser is None):
             self.print_info("Can't Connect to mbed port!")
