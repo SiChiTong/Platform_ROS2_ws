@@ -138,6 +138,11 @@ source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/ros2_galactic/install/setu
 source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/self_drive_ws/install/setup.bash
 source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/simulation_ws/install/setup.bash
 
+# 미들웨어 선택 (fastrtps(fast dds) 추천)
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+# export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
+
 # (Optional) Cyclone DDS URI 경로 추가 (~/.bashrc)
 # 만약 ros2: using network interface enp... (udp/...) selected arbitrarily from: enp..., tun0 ~~
 # 에러가 발생하는 경우 MULTICAST 플래그를 가진 네트워크 인터페이스로 선택하여 설정해 주어야 함.
@@ -169,6 +174,8 @@ lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
 
 # In ~/.bashrc
 export CYCLONEDDS_URI='<CycloneDDS><Domain><General><NetworkInterfaceAddress>enp4s0</></></></>'
+
+
 
 #################################### WS 수정 시 주의사항 #############################################
 
