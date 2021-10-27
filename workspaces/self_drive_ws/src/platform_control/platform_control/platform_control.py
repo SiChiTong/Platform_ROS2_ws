@@ -212,7 +212,8 @@ class PlatformControlNode(Node):
     def timer_callback(self):
         try:
             dict_str = self.protocol_decode(self.ser.read_all().decode())
-        except UnicodeDecodeError:
+        except Exception as e:
+            self.print_info(f"decode_error: {e.message}")
             return
 
         if not(("VX" in dict_str) & ("VY" in dict_str) & ("Y" in dict_str)) | (dict_str is None) :
