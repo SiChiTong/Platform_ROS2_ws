@@ -213,7 +213,7 @@ class PlatformControlNode(Node):
         try:
             dict_str = self.protocol_decode(self.ser.read_all().decode())
         except Exception as e:
-            self.print_info(f"decode_error: {e.message}")
+            self.print_info(f"decode_error: {e}")
             return
 
         if not(("VX" in dict_str) & ("VY" in dict_str) & ("Y" in dict_str)) | (dict_str is None) :
