@@ -14,11 +14,14 @@ from tf2_ros import Buffer, TransformListener
 from nav_msgs.msg import OccupancyGrid, Odometry
 from nav_msgs.srv import GetMap
 from nav2_msgs.msg import Costmap
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TransformStamped, Polygon, Point32
 from sensor_msgs.msg import Image
 from std_msgs.msg import Int8
 import cv_bridge
 import math
+
+import threading
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
 def euler_from_quaternion(x, y, z, w):
     """
@@ -89,6 +92,18 @@ class platformNavigator(BasicNavigator):
         self.declare_parameter('waypoints',
                                "[[-14.75,-0.5,0.0], [1.25,0.0,0.0], [10.30,0.0,0.0], [29.75,0.05,0.0], [29.75,8.30,0.0]]")
 
+        self.declare_parameter('robot_base',"robot_base")
+
+        self.declare_parameter('visualization_map',False)
+        self.declare_parameter('visualization_bbox',True)
+
+        self.robot_base = self.get_parameter('robot_base').value
+        self.isVisualization_map = self.get_parameter('visualization_map').value
+        self.isVisualization_bbox = self.get_parameter('visualization_bbox').value
+
+        self.info(f"map: {self.isVisualization_map}")
+        self.info(f"bbox: {self.isVisualization_bbox}")
+
         self.waypoints = []
         self.waypoint_target = None
 
@@ -104,6 +119,7 @@ class platformNavigator(BasicNavigator):
         self.tf_listener = TransformListener(self.buffer, self)
         self.pub_map_img = self.create_publisher(Image, '/processed_map',1)
         self.sub_waypoint = self.create_subscription(Int8, "/waypoint", self.callback_waypoint, 5)
+        self.sub_bbox = self.create_subscription(Polygon, "/selected_area", self.callback_bbox, 5)
 
         self.map = None
         self.cost_map = ProcessedMap(Costmap())
@@ -137,9 +153,11 @@ class platformNavigator(BasicNavigator):
     def set_cost_map(self, map: Costmap, ratio_x=1.0, ratio_y=1.0):
         self.cost_map = ProcessedMap(map, ratio_x=ratio_x, ratio_y=ratio_y)
 
-    def update_map_data(self, str_robot: str):
+    def update_map_data(self, str_robot=None, ratio_x=1.0, ratio_y=1.0):
+        if(str_robot is None): str_robot=self.robot_base
+
         if(self.map is None):
-            self.set_map(self.get_map_ros2(),ratio_x=1.25,ratio_y=1.25)
+            self.set_map(self.get_map_ros2(), ratio_x=ratio_x, ratio_y=ratio_y)
         # costmap = ProcessedMap(self.getGlobalCostmap())
 
         robot_tf = self.get_robot_base(str_robot)
@@ -158,6 +176,13 @@ class platformNavigator(BasicNavigator):
         if self.waypoint_target != None:
             self.map.set_waypoint_pose(self.waypoint_target)
             self.cost_map.set_waypoint_pose(self.waypoint_target)
+
+    def callback_bbox(self, msg: Polygon):
+        # points = [[x1,y1], [x2,y2]]
+        points = [[int(p.x), int(p.y)] for p in msg.points]
+
+        self.map.set_bbox(points, ratio_x=2.0, ratio_y=2.0)
+        self.info(str(points))
 
 class ProcessedMap():
     def __init__(self, map, ratio_x=1.0, ratio_y=1.0):
@@ -213,6 +238,12 @@ class ProcessedMap():
         self.robot_base.position.y = tf.transform.translation.y
         self.robot_base.orientation = tf.transform.rotation
 
+    def set_bbox(self, points, ratio_x=1.0, ratio_y=1.0):
+        # points = [[x1,y1], [x2,y2]]
+        self.bbox = points
+        self.ratio_x_bbox = ratio_x
+        self.ratio_y_bbox = ratio_y
+
     def get_robot_base(self):
         _, _, yaw = euler_from_quaternion(self.robot_base.orientation.x, self.robot_base.orientation.y,
                                           self.robot_base.orientation.z, self.robot_base.orientation.w)
@@ -230,9 +261,16 @@ class ProcessedMap():
 
         return (x_ref + x_np), (y_ref + y_np)
 
-    def np_to_position(self, x, y):
+    def np_to_position_map(self, x, y):
         x_ref, y_ref = self.origin_np()
         return (x / self.ratio_x - x_ref) * self.resolution, -(y / self.ratio_y - y_ref) * self.resolution
+
+    def np_to_position_bbox(self, x, y):
+        x_ref, y_ref = self.origin_np()
+        x_LU, y_LU = self.bbox[0][0], self.bbox[0][1]
+        x_bbox_to_map = x_LU + x / self.ratio_x_bbox
+        y_bbox_to_map = y_LU + y / self.ratio_x_bbox
+        return (x_bbox_to_map / self.ratio_x - x_ref) * self.resolution, -(y_bbox_to_map / self.ratio_y - y_ref) * self.resolution
 
     def visualization(self):
         np_map = self.np_map.copy()
@@ -257,14 +295,27 @@ class ProcessedMap():
 
         np_map = cv2.circle(np_map, [origin_x_np, origin_y_np], 3, color=[0, 0, 255], thickness=-1)
         np_map = cv2.fillPoly(np_map, [points_robot_viz], color=[0, 255, 0])
-
         np_map = cv2.resize(np_map, [int(self.size_x * self.ratio_x), int(self.size_y * self.ratio_y)])
+
+        if hasattr(self,"bbox") and (self.bbox is not None):
+            p1 = self.bbox[0]
+            p2 = self.bbox[1]
+            np_map = cv2.rectangle(np_map, p1, p2,color=[255, 0, 0],thickness=2)
+
         return np_map
 
-    def find_position(self, event, x, y, flags, param):
-        if event == cv2.EVENT_LBUTTONDOWN:
-            x_result,y_result = self.np_to_position(x,y)
-            print(f'x: {x_result:.2f} / y: {y_result:.2f}')
+    def visualization_bbox(self):
+        if hasattr(self,"bbox") and (self.bbox is not None):
+            p1 = self.bbox[0]
+            p2 = self.bbox[1]
+            size_x = p2[0] - p1[0]
+            size_y = p2[1] - p1[1]
+
+            map_result = self.np_map[p1[1]:p2[1],p1[0]:p2[0]]
+            map_result = cv2.resize(map_result, [int(size_x * self.ratio_x_bbox), int(size_y * self.ratio_y_bbox)])
+            return map_result
+        else:
+            return None
 
 class rate_mine():
     def __init__(self, rate):
@@ -334,6 +385,12 @@ def main():
     rclpy.init()
     navigator = platformNavigator(init_x=0.0, init_y=0.0, init_yaw=0.0)
 
+    # executor = rclpy.executors.MultiThreadedExecutor(num_threads=3)
+    # aa = executor.add_node(navigator)
+    #
+    # executor_thread = threading.Thread(target=executor.spin, daemon=True)
+    # executor_thread.start()
+
     is_goal_first = True
 
     # Wait for navigation to fully activate, since autostarting nav2
@@ -341,21 +398,28 @@ def main():
     navigator.waitUntilNav2Active()
     cvbridge = cv_bridge.CvBridge()
 
-    rate = rate_mine(20.0)
+    rate = rate_mine(30.0)
 
-    def click_callback(event, x, y, flags, param):
+    def click_callback_map(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
             map: ProcessedMap = navigator.map
-            x_real,y_real = map.np_to_position(x,y)
-            print(f"x:{x_real:.2f}, y:{y_real:.2f}")
+            x_real,y_real = map.np_to_position_map(x,y)
+            navigator.info(f"x:{x_real:.2f}, y:{y_real:.2f}")
 
-    win_name = "asd"
+    def click_callback_bbox(event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            map: ProcessedMap = navigator.map
+            x_real,y_real = map.np_to_position_bbox(x,y)
+            navigator.info(f"x:{x_real:.2f}, y:{y_real:.2f}")
+
+    map_win_name = "map"
+    bbox_win_name = "bbox"
 
     while rclpy.ok():
 
         # TODO: CPP 구현
         # navigator.update_map_data(str_robot="robot_base")
-        navigator.update_map_data(str_robot="base_link")
+        navigator.update_map_data()
         viz_map = navigator.map.visualization()
         msg_map = cvbridge.cv2_to_imgmsg(viz_map)
         navigator.pub_map_img.publish(msg_map)
@@ -369,8 +433,16 @@ def main():
             navigator.waypoint_target = None
             navigator.get_logger().info("Running...")
 
-        cv2.imshow(win_name,viz_map)
-        cv2.setMouseCallback(win_name,click_callback)
+        if(navigator.isVisualization_map):
+            cv2.imshow(map_win_name,viz_map)
+            cv2.setMouseCallback(map_win_name,click_callback_map)
+
+        map: ProcessedMap = navigator.map
+        bbox_area = map.visualization_bbox()
+
+        if (bbox_area is not None) & (navigator.isVisualization_bbox):
+            cv2.imshow(bbox_win_name,bbox_area)
+            cv2.setMouseCallback(bbox_win_name,click_callback_bbox)
 
         k = cv2.waitKey(1) & 0xFF
 

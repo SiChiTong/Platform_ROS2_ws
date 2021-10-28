@@ -33,57 +33,64 @@ def main():
     rclpy.init()
     navigator = platformNavigator(init_x=0.0, init_y=0.0, init_yaw=0.0)
 
+    # executor = rclpy.executors.MultiThreadedExecutor(num_threads=3)
+    # aa = executor.add_node(navigator)
+    #
+    # executor_thread = threading.Thread(target=executor.spin, daemon=True)
+    # executor_thread.start()
+
+    is_goal_first = True
+
     # Wait for navigation to fully activate, since autostarting nav2
     navigator.get_logger().info("Wait for Navigation2...")
     navigator.waitUntilNav2Active()
+    cvbridge = cv_bridge.CvBridge()
 
-    rate = rate_mine(10.0)
+    rate = rate_mine(30.0)
+
+    def click_callback_map(event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            map: ProcessedMap = navigator.map
+            x_real,y_real = map.np_to_position_map(x,y)
+            navigator.info(f"x:{x_real:.2f}, y:{y_real:.2f}")
+
+    def click_callback_bbox(event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            map: ProcessedMap = navigator.map
+            x_real,y_real = map.np_to_position_bbox(x,y)
+            navigator.info(f"x:{x_real:.2f}, y:{y_real:.2f}")
+
+    map_win_name = "map"
+    bbox_win_name = "bbox"
 
     while rclpy.ok():
+
         # TODO: CPP 구현
+        # navigator.update_map_data(str_robot="robot_base")
+        navigator.update_map_data()
+        viz_map = navigator.map.visualization()
+        msg_map = cvbridge.cv2_to_imgmsg(viz_map)
+        navigator.pub_map_img.publish(msg_map)
 
-        navigator.update_map_data(str_robot="base_link")
+        if navigator.waypoint_target != None:
+            if is_goal_first:
+                is_goal_first = False
+            else:
+                navigator.cancelNav()
+            navigator.goToPose(navigator.waypoint_target)
+            navigator.waypoint_target = None
+            navigator.get_logger().info("Running...")
+
         map: ProcessedMap = navigator.map
-        map_np = map.np_map
-        img = cv2.cvtColor(map_np, cv2.COLOR_GRAY2RGB)
+        bbox_area = map.visualization_bbox()
+        if bbox_area is not None:
+            cv2.imshow(bbox_win_name,bbox_area)
+            cv2.setMouseCallback(bbox_win_name,click_callback_bbox)
 
-        approxes = generate_polygon_countour_np(map_np)
-        for approx in approxes:
-            img = cv2.drawContours(img, [approx], 0, (0,255,0), 3)
-        #
-        # approxes.insert(0,np.array([[[737, 260]],
-        #
-        #                              [[738, 261]],
-        #
-        #                              [[738, 260]]], dtype=np.int32))
-        #
-
-        #
-        # # generate the boundary by getting the min/max value of all polygon
-        # polygons = [np.squeeze(x) for x in approxes]
-        #
-        # y_limit_lower = min([pt[1] for pt in polygons[0]])
-        # y_limit_upper = max([pt[1] for pt in polygons[0]])
-        #
-        # x_limit_lower = min([pt[0] for pt in polygons[0]])
-        # x_limit_upper = max([pt[0] for pt in polygons[0]])
-        #
-        # # boundary_basic certex order
-        # boundary_basic = [[x_limit_lower, y_limit_lower], [x_limit_upper, y_limit_lower], [x_limit_upper, y_limit_upper], [x_limit_lower, y_limit_upper]]
-        #
-        # # Among all the polygon cv2 generated, [1:] are the inner obstacles
-        # obstacles_basic = polygons[1:]
-        # # source_basic, dest_basic = [[10, 10], [1000, 500]]
-        #
-        # boundary, sorted_vertices, obstacles = extract_vertex(boundary_basic, obstacles_basic)
-        # draw_problem(boundary, obstacles)
-        # open_line_segments = get_vertical_line(sorted_vertices, obstacles,  y_limit_lower, y_limit_upper)
-
-        cv2.imshow("asd",img)
 
         k = cv2.waitKey(1) & 0xFF
-        rclpy.spin_once(navigator, timeout_sec=0.1)
-        rate.sleep()
+
+        rate.sleep(navigator)
 
         if k == 27:
             break

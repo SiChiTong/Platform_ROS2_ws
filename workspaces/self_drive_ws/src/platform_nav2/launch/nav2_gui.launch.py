@@ -36,6 +36,10 @@ def generate_launch_description():
     commander_launch_file_dir = os.path.join(package_prefix)
     commander_executable = "nav2_commander.py"
 
+    robot_name = LaunchConfiguration('robot_base', default="robot_base")
+    visualization_map = LaunchConfiguration('visualization_map', default=False)
+    visualization_bbox = LaunchConfiguration('visualization_bbox', default=True)
+
     gui_cmd = Node(
         package='platform_gui',
         executable=gui_executable,
@@ -48,7 +52,11 @@ def generate_launch_description():
         executable=commander_executable,
         name='nav2_commander',
         output='screen',
-        parameters=[])
+        parameters=[{"robot_base": robot_name,
+                     "visualization_map" : visualization_map,
+                     "visualization_bbox" : visualization_bbox,
+
+    }])
 
     ld = LaunchDescription()
 

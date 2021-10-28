@@ -56,6 +56,9 @@ def generate_launch_description():
     nav_through_poses_bt_xml = LaunchConfiguration('default_nav_through_poses_bt_xml',
                                  default=os.path.join(package_prefix, 'behavior_trees', nav_through_poses_bt_xml_file))
 
+    visualization_bbox = LaunchConfiguration('visualization_bbox', default=False)
+    visualization_map = LaunchConfiguration('visualization_map', default=False)
+
     pkg_launch_file_dir = os.path.join(package_prefix, 'launch')
     rviz_config_file = os.path.join(package_prefix, 'rviz', 'platform_sim.rviz')
 
@@ -110,7 +113,11 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(package_prefix, 'launch', 'nav2_gui.launch.py')
         ),
-        launch_arguments={'world': world}.items()
+        launch_arguments={
+            'robot_base': "base_link",
+            'visualization_map': visualization_map,
+            'visualization_bbox': visualization_bbox,
+        }.items()
     )
 
     rviz_node = Node(
@@ -131,6 +138,6 @@ def generate_launch_description():
     ld.add_action(nav2_cmd)
     ld.add_action(rviz_node)
 
-    # ld.add_action(gui_cmd)
+    ld.add_action(gui_cmd)
 
     return ld
