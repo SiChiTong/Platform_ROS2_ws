@@ -28,20 +28,34 @@ package_name = 'platform_control'
 
 def generate_launch_description():
     package_prefix = get_package_share_directory(package_name)
+    map_file = "map.yaml"
+    param_file_name = 'platform.yaml'
+    nav2_launch_file_dir = os.path.join(get_package_share_directory('nav2_bringup'), 'launch')
+    rviz_config_dir = os.path.join(package_prefix, 'rviz', 'platform_navigation2.rviz')
+
 
     use_sim_time = LaunchConfiguration('use_sim_time', default='false')
 
-    map_file = "map.yaml"
     map_dir = LaunchConfiguration('map_file',
                                   default=os.path.join(package_prefix, 'map', map_file))
 
-    param_file_name = 'platform.yaml'
     param_dir = LaunchConfiguration('params_file',
                                     default=os.path.join(package_prefix,'param_nav',param_file_name))
 
-    nav2_launch_file_dir = os.path.join(get_package_share_directory('nav2_bringup'), 'launch')
+    visualization_bbox = LaunchConfiguration('visualization_bbox', default=True)
 
-    rviz_config_dir = os.path.join(package_prefix, 'rviz', 'platform_navigation2.rviz')
+    visualization_map = LaunchConfiguration('visualization_map', default=False)
+
+    gui_cmd = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(package_prefix, 'launch', 'nav2_gui.launch.py')
+        ),
+        launch_arguments={
+            'robot_base': "robot_base",
+            'visualization_map': visualization_map,
+            'visualization_bbox': visualization_bbox,
+        }.items()
+    )
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -66,6 +80,8 @@ def generate_launch_description():
                 'use_sim_time': use_sim_time,
                 'params_file': param_dir}.items(),
         ),
+
+        gui_cmd,
 
         Node(
             package='rviz2',
