@@ -75,6 +75,7 @@ class PlatformControlNode(Node):
         self.pub_mode = self.create_publisher(std_msgs.msg.String, "/platform_mode", 10)
         self.pub_cmd_LPF = self.create_publisher(Twist, "/cmd_LPF", 10)
         self.sub_cmd = self.create_subscription(Twist, "/cmd_vel", self.callback_cmd, 10)
+        self.sub_cmd = self.create_subscription(std_msgs.msg.String, "/cmd_gui", self.callback_gui, 10)
         self.pub_a = self.create_publisher(Float32, '/a', 10)
         self.pub_b = self.create_publisher(Float32, '/b', 10)
         self.pub_c = self.create_publisher(Float32, '/c', 10)
@@ -604,6 +605,13 @@ class PlatformControlNode(Node):
                 if (self.cmd_vel.linear.x == 0.0): self.cmd_vel_LPF.linear.x = 0.0
                 if (self.cmd_vel.linear.y == 0.0): self.cmd_vel_LPF.linear.y = 0.0
                 if (self.cmd_vel.angular.z == 0.0): self.cmd_vel_LPF.angular.z = 0.0
+
+    def callback_gui(self, msg : std_msgs.msg.String):
+        if(self.ser.writable()):
+            self.ser.write(msg.data.encode())
+            self.print_info(f"send: {msg.data.encode()}")
+        else:
+            self.print_info(f"Can't send {msg.data.encode()}'")
 
     def broadcast_tf2_static(self):
         now_stamp = self.get_clock().now().to_msg()
