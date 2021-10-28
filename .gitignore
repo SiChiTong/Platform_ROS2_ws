@@ -10,5 +10,4 @@
 **/.vscode/settings.json
 **/.vscode/c_cpp_properties.json
 **.pth
-**/src/*-Debug/**
 **/platform_gui/qt_build/**
