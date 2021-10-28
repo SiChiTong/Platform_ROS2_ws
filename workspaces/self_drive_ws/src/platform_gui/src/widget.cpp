@@ -450,9 +450,15 @@ void Widget::callback(cv::Mat mat)
     qPainter.end();
   }
 
-  RCLCPP_INFO(node_ptr->get_logger(),"image received!!");
-
   ui->lbl_map_img->setPixmap(QPixmap::fromImage(image_result));
+//  ui->lbl_map_img->update();
+
+  auto time_now = node_ptr->get_clock()->now().seconds();
+  char buffer[200] = "";
+
+//  sprintf(buffer,"time: %.2f",time_now);
+//  ui->lbl_time->setText(QString(buffer));
+//  ui->lbl_time->update();
 }
 
 void Widget::on_lbl_map_img_clicked(QMouseEvent *event)

@@ -776,7 +776,7 @@
        <x>920</x>
        <y>310</y>
        <width>281</width>
-       <height>251</height>
+       <height>261</height>
       </rect>
      </property>
      <property name="title">
@@ -791,7 +791,7 @@
         <x>8</x>
         <y>29</y>
         <width>265</width>
-        <height>211</height>
+        <height>226</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout">
@@ -996,19 +996,6 @@
       </property>
      </widget>
     </widget>
-    <widget class="QLabel" name="lbl_map">
-     <property name="geometry">
-      <rect>
-       <x>450</x>
-       <y>30</y>
-       <width>67</width>
-       <height>17</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Map</string>
-     </property>
-    </widget>
     <widget class="QLabel" name="lbl_map_R">
      <property name="geometry">
       <rect>
@@ -1063,7 +1050,7 @@
        <x>20</x>
        <y>65</y>
        <width>881</width>
-       <height>508</height>
+       <height>506</height>
       </rect>
      </property>
      <property name="styleSheet">
@@ -1149,7 +1136,7 @@
       </item>
      </layout>
     </widget>
-    <widget class="QWidget" name="">
+    <widget class="QWidget" name="layoutWidget">
      <property name="geometry">
       <rect>
        <x>930</x>
@@ -1197,6 +1184,19 @@ Area</string>
        </widget>
       </item>
      </layout>
+    </widget>
+    <widget class="QLabel" name="lbl_time">
+     <property name="geometry">
+      <rect>
+       <x>550</x>
+       <y>40</y>
+       <width>231</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>time:</string>
+     </property>
     </widget>
    </widget>
   </widget>
