@@ -25,14 +25,15 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 package_name = 'platform_control'
+package_prefix = get_package_share_directory(package_name)
+nav2_launch_file_dir = os.path.join(get_package_share_directory('nav2_bringup'), 'launch')
+rviz_config_dir = os.path.join(package_prefix, 'rviz', 'platform_navigation2.rviz')
 
 def generate_launch_description():
-    package_prefix = get_package_share_directory(package_name)
+
     map_file = "map.yaml"
     param_file_name = 'platform.yaml'
-    nav2_launch_file_dir = os.path.join(get_package_share_directory('nav2_bringup'), 'launch')
-    rviz_config_dir = os.path.join(package_prefix, 'rviz', 'platform_navigation2.rviz')
-
+    robot_name = "robot_base"
 
     use_sim_time = LaunchConfiguration('use_sim_time', default='false')
 
@@ -51,7 +52,7 @@ def generate_launch_description():
             os.path.join(package_prefix, 'launch', 'nav2_gui.launch.py')
         ),
         launch_arguments={
-            'robot_base': "robot_base",
+            'robot_base': robot_name,
             'visualization_map': visualization_map,
             'visualization_bbox': visualization_bbox,
         }.items()
