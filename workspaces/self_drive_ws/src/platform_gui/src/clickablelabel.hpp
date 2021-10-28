@@ -1,5 +1,5 @@
-#ifndef CLICKABLELABEL_H
-#define CLICKABLELABEL_H
+#ifndef CLICKABLELABEL_HPP
+#define CLICKABLELABEL_HPP
 
 #include <QLabel>
 #include <QWidget>
@@ -13,12 +13,14 @@ public:
     ~ClickableLabel();
 
 signals:
-    void clicked();
+    void clicked(QMouseEvent* event);
+    void moved(QMouseEvent* event);
+    void release(QMouseEvent* event);
 
 protected:
     void mousePressEvent(QMouseEvent* event);
-
+    void mouseMoveEvent(QMouseEvent* event);
+    void mouseReleaseEvent(QMouseEvent* event);
 };
-
 
 #endif // CLICKABLELABEL_H

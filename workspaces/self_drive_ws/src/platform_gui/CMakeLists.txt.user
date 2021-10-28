@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 4.9.2, 2021-10-19T21:12:41. -->
+<!-- Written by QtCreator 4.9.2, 2021-10-28T00:57:58. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -114,7 +114,7 @@
     <valuelist type="QVariantList" key="CMake.Configuration">
      <value type="QString">CMAKE_BUILD_TYPE:STRING=Debug</value>
     </valuelist>
-    <value type="QString" key="ProjectExplorer.BuildConfiguration.BuildDirectory">/home/park/Documents/GitHub/Project/source/workspaces/self_drive_ws/src/build-rviz_test_qt-Desktop-Debug</value>
+    <value type="QString" key="ProjectExplorer.BuildConfiguration.BuildDirectory">/home/park/Documents/GitHub/Platform_ROS2_ws/workspaces/self_drive_ws/src/platform_gui/qt_build</value>
     <valuemap type="QVariantMap" key="ProjectExplorer.BuildConfiguration.BuildStepList.0">
      <valuemap type="QVariantMap" key="ProjectExplorer.BuildStepList.Step.0">
       <value type="QString" key="CMakeProjectManager.MakeStep.AdditionalArguments"></value>
@@ -497,7 +497,7 @@
     <value type="bool" key="RunConfiguration.UseQmlDebugger">false</value>
     <value type="bool" key="RunConfiguration.UseQmlDebuggerAuto">true</value>
     <value type="QString" key="RunConfiguration.WorkingDirectory"></value>
-    <value type="QString" key="RunConfiguration.WorkingDirectory.default">/home/park/Documents/GitHub/Project/source/workspaces/self_drive_ws/src/build-rviz_test_qt-Desktop-Debug</value>
+    <value type="QString" key="RunConfiguration.WorkingDirectory.default">/home/park/Documents/GitHub/Platform_ROS2_ws/workspaces/self_drive_ws/src/platform_gui/qt_build</value>
    </valuemap>
    <value type="int" key="ProjectExplorer.Target.RunConfigurationCount">3</value>
   </valuemap>

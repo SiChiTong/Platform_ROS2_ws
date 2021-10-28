@@ -731,33 +731,11 @@
     <attribute name="title">
      <string>setting</string>
     </attribute>
-    <widget class="QLabel" name="lable_logo_5">
-     <property name="geometry">
-      <rect>
-       <x>1130</x>
-       <y>500</y>
-       <width>71</width>
-       <height>41</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-     <property name="pixmap">
-      <pixmap>:img/pic_logo_1.jpg</pixmap>
-     </property>
-     <property name="scaledContents">
-      <bool>true</bool>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignCenter</set>
-     </property>
-    </widget>
     <widget class="QLabel" name="label_10">
      <property name="geometry">
       <rect>
-       <x>90</x>
-       <y>30</y>
+       <x>60</x>
+       <y>10</y>
        <width>101</width>
        <height>31</height>
       </rect>
@@ -776,10 +754,10 @@
     <widget class="QLabel" name="label_11">
      <property name="geometry">
       <rect>
-       <x>20</x>
-       <y>20</y>
-       <width>67</width>
-       <height>61</height>
+       <x>10</x>
+       <y>10</y>
+       <width>51</width>
+       <height>41</height>
       </rect>
      </property>
      <property name="text">
@@ -792,39 +770,13 @@
       <bool>true</bool>
      </property>
     </widget>
-    <widget class="QPushButton" name="pushButton">
-     <property name="geometry">
-      <rect>
-       <x>30</x>
-       <y>110</y>
-       <width>131</width>
-       <height>41</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Serial Connect</string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="pushButton_2">
-     <property name="geometry">
-      <rect>
-       <x>30</x>
-       <y>160</y>
-       <width>131</width>
-       <height>41</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Serial Disconnect</string>
-     </property>
-    </widget>
     <widget class="QGroupBox" name="control_group">
      <property name="geometry">
       <rect>
-       <x>210</x>
-       <y>20</y>
-       <width>291</width>
-       <height>221</height>
+       <x>920</x>
+       <y>310</y>
+       <width>281</width>
+       <height>251</height>
       </rect>
      </property>
      <property name="title">
@@ -833,129 +785,141 @@
      <property name="alignment">
       <set>Qt::AlignCenter</set>
      </property>
-     <widget class="QPushButton" name="Stop">
+     <widget class="QWidget" name="layoutWidget">
       <property name="geometry">
        <rect>
-        <x>100</x>
-        <y>90</y>
-        <width>89</width>
-        <height>61</height>
+        <x>8</x>
+        <y>29</y>
+        <width>265</width>
+        <height>211</height>
        </rect>
       </property>
-      <property name="text">
-       <string>Stop</string>
-      </property>
-     </widget>
-     <widget class="QPushButton" name="Right_Front">
-      <property name="geometry">
-       <rect>
-        <x>190</x>
-        <y>30</y>
-        <width>89</width>
-        <height>61</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Right Front</string>
-      </property>
-     </widget>
-     <widget class="QPushButton" name="Left_Front">
-      <property name="geometry">
-       <rect>
-        <x>10</x>
-        <y>30</y>
-        <width>89</width>
-        <height>61</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Left Front</string>
-      </property>
-     </widget>
-     <widget class="QPushButton" name="Left">
-      <property name="geometry">
-       <rect>
-        <x>10</x>
-        <y>90</y>
-        <width>89</width>
-        <height>61</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Left</string>
-      </property>
-     </widget>
-     <widget class="QPushButton" name="Right">
-      <property name="geometry">
-       <rect>
-        <x>190</x>
-        <y>90</y>
-        <width>89</width>
-        <height>61</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Right</string>
-      </property>
-     </widget>
-     <widget class="QPushButton" name="Left_Back">
-      <property name="geometry">
-       <rect>
-        <x>10</x>
-        <y>150</y>
-        <width>89</width>
-        <height>61</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Left Back</string>
-      </property>
-     </widget>
-     <widget class="QPushButton" name="Front">
-      <property name="geometry">
-       <rect>
-        <x>100</x>
-        <y>30</y>
-        <width>89</width>
-        <height>61</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Front</string>
-      </property>
-     </widget>
-     <widget class="QPushButton" name="Right_Back">
-      <property name="geometry">
-       <rect>
-        <x>190</x>
-        <y>150</y>
-        <width>89</width>
-        <height>61</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Right Back</string>
-      </property>
-     </widget>
-     <widget class="QPushButton" name="Back">
-      <property name="geometry">
-       <rect>
-        <x>100</x>
-        <y>150</y>
-        <width>89</width>
-        <height>61</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Back</string>
-      </property>
+      <layout class="QGridLayout" name="gridLayout">
+       <item row="0" column="0">
+        <widget class="QPushButton" name="Left_Front">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>LF</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QPushButton" name="Front">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>F</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="2">
+        <widget class="QPushButton" name="Right_Front">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>RF</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QPushButton" name="Left">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>L</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QPushButton" name="Stop">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>S</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="2">
+        <widget class="QPushButton" name="Right">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>R</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QPushButton" name="Left_Back">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>LB</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QPushButton" name="Back">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>B</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="2">
+        <widget class="QPushButton" name="Right_Back">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>RB</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </widget>
     </widget>
     <widget class="QGroupBox" name="control_group_waypoint">
      <property name="geometry">
       <rect>
-       <x>510</x>
-       <y>20</y>
+       <x>920</x>
+       <y>10</y>
        <width>291</width>
        <height>161</height>
       </rect>
@@ -1032,24 +996,11 @@
       </property>
      </widget>
     </widget>
-    <widget class="QGraphicsView" name="graphicsView">
-     <property name="geometry">
-      <rect>
-       <x>110</x>
-       <y>280</y>
-       <width>991</width>
-       <height>281</height>
-      </rect>
-     </property>
-     <property name="autoFillBackground">
-      <bool>false</bool>
-     </property>
-    </widget>
     <widget class="QLabel" name="lbl_map">
      <property name="geometry">
       <rect>
-       <x>110</x>
-       <y>260</y>
+       <x>450</x>
+       <y>30</y>
        <width>67</width>
        <height>17</height>
       </rect>
@@ -1058,11 +1009,11 @@
       <string>Map</string>
      </property>
     </widget>
-    <widget class="QLabel" name="lbl_map_2">
+    <widget class="QLabel" name="lbl_map_R">
      <property name="geometry">
       <rect>
-       <x>1110</x>
-       <y>310</y>
+       <x>789</x>
+       <y>8</y>
        <width>67</width>
        <height>17</height>
       </rect>
@@ -1074,11 +1025,11 @@
       <string>R: Goal</string>
      </property>
     </widget>
-    <widget class="QLabel" name="lbl_map_3">
+    <widget class="QLabel" name="lbl_map_G">
      <property name="geometry">
       <rect>
-       <x>1110</x>
-       <y>335</y>
+       <x>789</x>
+       <y>26</y>
        <width>67</width>
        <height>17</height>
       </rect>
@@ -1090,11 +1041,11 @@
       <string>G: Robot</string>
      </property>
     </widget>
-    <widget class="QLabel" name="lbl_map_4">
+    <widget class="QLabel" name="lbl_map_B">
      <property name="geometry">
       <rect>
-       <x>1111</x>
-       <y>360</y>
+       <x>790</x>
+       <y>43</y>
        <width>91</width>
        <height>17</height>
       </rect>
@@ -1106,71 +1057,146 @@
       <string>B : ref Frame</string>
      </property>
     </widget>
-    <widget class="QPushButton" name="Brush_OFF">
+    <widget class="ClickableLabel" name="lbl_map_img">
      <property name="geometry">
       <rect>
-       <x>920</x>
-       <y>40</y>
-       <width>89</width>
-       <height>61</height>
+       <x>20</x>
+       <y>65</y>
+       <width>881</width>
+       <height>508</height>
       </rect>
      </property>
+     <property name="styleSheet">
+      <string notr="true">border: 1px solid black;</string>
+     </property>
      <property name="text">
-      <string>Brush OFF</string>
+      <string/>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
      </property>
     </widget>
-    <widget class="QPushButton" name="brush_on">
+    <widget class="QWidget" name="layoutWidget">
      <property name="geometry">
       <rect>
-       <x>830</x>
-       <y>40</y>
-       <width>89</width>
-       <height>61</height>
+       <x>1030</x>
+       <y>180</y>
+       <width>168</width>
+       <height>121</height>
       </rect>
      </property>
-     <property name="text">
-      <string>Brush On</string>
-     </property>
+     <layout class="QGridLayout" name="gridLayout_2">
+      <property name="sizeConstraint">
+       <enum>QLayout::SetMinimumSize</enum>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <property name="verticalSpacing">
+       <number>6</number>
+      </property>
+      <item row="0" column="0">
+       <widget class="QPushButton" name="brush_on">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Brush On</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QPushButton" name="Brush_OFF">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Brush OFF</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QPushButton" name="pump_on">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Pump On</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QPushButton" name="Pump_OFF">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Pump OFF</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </widget>
-    <widget class="QPushButton" name="Pump_OFF">
+    <widget class="QWidget" name="">
      <property name="geometry">
       <rect>
-       <x>920</x>
-       <y>100</y>
-       <width>89</width>
-       <height>61</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Pump OFF</string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="pump_on">
-     <property name="geometry">
-      <rect>
-       <x>830</x>
-       <y>100</y>
-       <width>89</width>
-       <height>61</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Pump On</string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="start_clean">
-     <property name="geometry">
-      <rect>
-       <x>830</x>
+       <x>930</x>
        <y>180</y>
        <width>89</width>
-       <height>61</height>
+       <height>121</height>
       </rect>
      </property>
-     <property name="text">
-      <string>Start 
+     <layout class="QGridLayout" name="gridLayout_3">
+      <item row="0" column="0">
+       <widget class="QPushButton" name="lbl_start_clean">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="font">
+         <font>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Start 
 Auto Clean</string>
-     </property>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QPushButton" name="lbl_reset_area">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">color: rgb(255, 25, 0)</string>
+        </property>
+        <property name="text">
+         <string>Reset
+Area</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </widget>
   </widget>
@@ -1299,6 +1325,18 @@ Auto Clean</string>
    </property>
   </widget>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ClickableLabel</class>
+   <extends>QLabel</extends>
+   <header>src/clickablelabel.hpp</header>
+   <slots>
+    <signal>clicked(QMouseEvent*)</signal>
+    <signal>moved(QMouseEvent*)</signal>
+    <signal>release(QMouseEvent*)</signal>
+   </slots>
+  </customwidget>
+ </customwidgets>
  <resources>
   <include location="zeus_resource.qrc"/>
  </resources>

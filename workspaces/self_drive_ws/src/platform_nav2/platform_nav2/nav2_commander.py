@@ -18,6 +18,31 @@ from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import Image
 from std_msgs.msg import Int8
 import cv_bridge
+import math
+
+def euler_from_quaternion(x, y, z, w):
+    """
+    Converts quaternion (w in last place) to euler roll, pitch, yaw
+    quaternion = [x, y, z, w]
+    Bellow should be replaced when porting for ROS 2 Python tf_conversions is done.
+    """
+    # x = quaternion.x
+    # y = quaternion.y
+    # z = quaternion.z
+    # w = quaternion.w
+
+    sinr_cosp = 2 * (w * x + y * z)
+    cosr_cosp = 1 - 2 * (x * x + y * y)
+    roll = np.arctan2(sinr_cosp, cosr_cosp)
+
+    sinp = 2 * (w * y - z * x)
+    pitch = np.arcsin(sinp)
+
+    siny_cosp = 2 * (w * z + x * y)
+    cosy_cosp = 1 - 2 * (y * y + z * z)
+    yaw = np.arctan2(siny_cosp, cosy_cosp)
+
+    return roll, pitch, yaw
 
 def quaternion_from_euler(roll, pitch, yaw):
     """
@@ -80,7 +105,6 @@ class platformNavigator(BasicNavigator):
         self.pub_map_img = self.create_publisher(Image, '/processed_map',1)
         self.sub_waypoint = self.create_subscription(Int8, "/waypoint", self.callback_waypoint, 5)
 
-        # self.map = ProcessedMap(OccupancyGrid())
         self.map = None
         self.cost_map = ProcessedMap(Costmap())
 
@@ -104,6 +128,7 @@ class platformNavigator(BasicNavigator):
             tf = self.buffer.lookup_transform("map", target, rclpy.time.Time())  # Blocking
             return tf
         except Exception as e:
+            self.info(f"error: {e}")
             return None
 
     def set_map(self, map: OccupancyGrid, ratio_x=1.0, ratio_y=1.0):
@@ -112,12 +137,12 @@ class platformNavigator(BasicNavigator):
     def set_cost_map(self, map: Costmap, ratio_x=1.0, ratio_y=1.0):
         self.cost_map = ProcessedMap(map, ratio_x=ratio_x, ratio_y=ratio_y)
 
-    def update_map_data(self):
+    def update_map_data(self, str_robot: str):
         if(self.map is None):
             self.set_map(self.get_map_ros2(),ratio_x=1.25,ratio_y=1.25)
         # costmap = ProcessedMap(self.getGlobalCostmap())
 
-        robot_tf = self.get_robot_base("base_link")
+        robot_tf = self.get_robot_base(str_robot)
         if robot_tf is not None:
             self.map.set_robot_base_tf(robot_tf)
             # costmap.set_robot_base_tf(robot_tf)
@@ -188,6 +213,13 @@ class ProcessedMap():
         self.robot_base.position.y = tf.transform.translation.y
         self.robot_base.orientation = tf.transform.rotation
 
+    def get_robot_base(self):
+        _, _, yaw = euler_from_quaternion(self.robot_base.orientation.x, self.robot_base.orientation.y,
+                                          self.robot_base.orientation.z, self.robot_base.orientation.w)
+        x = self.robot_base.position.x
+        y = self.robot_base.position.y
+        return x, y, yaw
+
     def origin_np(self):
         return int(-self.origin.position.x / self.resolution), int(self.size_y + self.origin.position.y / self.resolution)
 
@@ -207,14 +239,24 @@ class ProcessedMap():
         np_map = cv2.cvtColor(np_map,cv2.COLOR_GRAY2RGB)
 
         origin_x_np, origin_y_np = self.origin_np()
-        robot_x, robot_y = self.position_to_np(self.robot_base.position.x, self.robot_base.position.y)
+        robot_x, robot_y, robot_yaw = self.get_robot_base()
+        robot_real = Rectangle(robot_x, robot_y, 0.4, 0.6)
+
+        p1, p2, p3, p4 = robot_real.rotate_rectangle(round(robot_yaw,1))
+
+        p1_viz = self.position_to_np(p1.x, p1.y)
+        p2_viz = self.position_to_np(p2.x, p2.y)
+        p3_viz = self.position_to_np(p3.x, p3.y)
+        p4_viz = self.position_to_np(p4.x, p4.y)
+
+        points_robot_viz = np.array([p1_viz, p2_viz, p3_viz, p4_viz], dtype=np.int32)
 
         if hasattr(self,"waypoint") and (self.waypoint is not None):
             w_x, w_y = self.position_to_np(self.waypoint.position.x, self.waypoint.position.y)
             np_map = cv2.circle(np_map, [w_x, w_y], 3, [255, 0, 0], thickness=-1)
 
-        np_map = cv2.circle(np_map, [origin_x_np, origin_y_np], 3, [0, 0, 255], thickness=-1)
-        np_map = cv2.circle(np_map, [robot_x, robot_y], 3, [0, 255, 0], thickness=-1)
+        np_map = cv2.circle(np_map, [origin_x_np, origin_y_np], 3, color=[0, 0, 255], thickness=-1)
+        np_map = cv2.fillPoly(np_map, [points_robot_viz], color=[0, 255, 0])
 
         np_map = cv2.resize(np_map, [int(self.size_x * self.ratio_x), int(self.size_y * self.ratio_y)])
         return np_map
@@ -229,12 +271,64 @@ class rate_mine():
         self.rate = rate
         self.dt0 = datetime.now()
 
-    def sleep(self):
+    def sleep(self, node):
         process_time = (datetime.now() - self.dt0).total_seconds()
         period = 1.0 / self.rate
-        if (process_time <= period):
-            time.sleep(period - process_time)
+
+        while (process_time <= period):
+            rclpy.spin_once(node, timeout_sec=0.1)
+            process_time = (datetime.now() - self.dt0).total_seconds()
+
         self.dt0 = datetime.now()
+
+class Point:
+    def __init__(self, x, y):
+        self.x = float(x)
+        self.y = float(y)
+
+class Rectangle:
+    def __init__(self, x, y, w, h):
+        self.x = x
+        self.y = y
+        self.w = h
+        self.h = w
+        self.angle = 0.0
+
+    def rotate_rectangle(self, theta):
+        pt0, pt1, pt2, pt3 = self.get_vertices_points()
+
+        # Point 0
+        rotated_x = math.cos(theta) * (pt0.x - self.x) - math.sin(theta) * (pt0.y - self.y) + self.x
+        rotated_y = math.sin(theta) * (pt0.x - self.x) + math.cos(theta) * (pt0.y - self.y) + self.y
+        point_0 = Point(rotated_x, rotated_y)
+
+        # Point 1
+        rotated_x = math.cos(theta) * (pt1.x - self.x) - math.sin(theta) * (pt1.y - self.y) + self.x
+        rotated_y = math.sin(theta) * (pt1.x - self.x) + math.cos(theta) * (pt1.y - self.y) + self.y
+        point_1 = Point(rotated_x, rotated_y)
+
+        # Point 2
+        rotated_x = math.cos(theta) * (pt2.x - self.x) - math.sin(theta) * (pt2.y - self.y) + self.x
+        rotated_y = math.sin(theta) * (pt2.x - self.x) + math.cos(theta) * (pt2.y - self.y) + self.y
+        point_2 = Point(rotated_x, rotated_y)
+
+        # Point 3
+        rotated_x = math.cos(theta) * (pt3.x - self.x) - math.sin(theta) * (pt3.y - self.y) + self.x
+        rotated_y = math.sin(theta) * (pt3.x - self.x) + math.cos(theta) * (pt3.y - self.y) + self.y
+        point_3 = Point(rotated_x, rotated_y)
+
+        return point_0, point_1, point_2, point_3
+
+    def get_vertices_points(self):
+        x0, y0, width, height, _angle = self.x, self.y, self.w, self.h, self.angle
+        b = math.cos(math.radians(_angle)) * 0.5
+        a = math.sin(math.radians(_angle)) * 0.5
+        pt0 = Point(float(x0 - a * height - b * width), float(y0 + b * height - a * width))
+        pt1 = Point(float(x0 + a * height - b * width), float(y0 - b * height - a * width))
+        pt2 = Point(float(2 * x0 - pt0.x), float(2 * y0 - pt0.y))
+        pt3 = Point(float(2 * x0 - pt1.x), float(2 * y0 - pt1.y))
+        pts = [pt0, pt1, pt2, pt3]
+        return pts
 
 def main():
     rclpy.init()
@@ -247,13 +341,21 @@ def main():
     navigator.waitUntilNav2Active()
     cvbridge = cv_bridge.CvBridge()
 
-    rate = rate_mine(10.0)
+    rate = rate_mine(20.0)
+
+    def click_callback(event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            map: ProcessedMap = navigator.map
+            x_real,y_real = map.np_to_position(x,y)
+            print(f"x:{x_real:.2f}, y:{y_real:.2f}")
+
+    win_name = "asd"
 
     while rclpy.ok():
 
         # TODO: CPP 구현
-
-        navigator.update_map_data()
+        # navigator.update_map_data(str_robot="robot_base")
+        navigator.update_map_data(str_robot="base_link")
         viz_map = navigator.map.visualization()
         msg_map = cvbridge.cv2_to_imgmsg(viz_map)
         navigator.pub_map_img.publish(msg_map)
@@ -267,9 +369,12 @@ def main():
             navigator.waypoint_target = None
             navigator.get_logger().info("Running...")
 
+        cv2.imshow(win_name,viz_map)
+        cv2.setMouseCallback(win_name,click_callback)
+
         k = cv2.waitKey(1) & 0xFF
-        rclpy.spin_once(navigator, timeout_sec=0.1)
-        rate.sleep()
+
+        rate.sleep(navigator)
 
         if k == 27:
             break

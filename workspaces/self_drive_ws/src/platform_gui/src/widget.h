@@ -2,8 +2,19 @@
 #define WIDGET_H
 
 #include <QWidget>
-#include <QtSerialPort/QSerialPort>
 #include <QtNetwork>
+#include <QDebug>
+#include <QMessageBox>
+#include <QImage>
+#include <QGraphicsPixmapItem>
+#include <QtNetwork>
+#include <QProcess>
+#include <QTcpSocket>
+#include <QNetworkInterface>
+#include <QTimer>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QBrush>
 
 #include <rclcpp/rclcpp.hpp>
 #include "platform_node.hpp"
@@ -16,12 +27,12 @@ class Widget : public QWidget
 {
     Q_OBJECT
 
-
 public:
     Widget(QWidget *parent = nullptr);
     ~Widget();    
 
     std::shared_ptr<platform_node> node_ptr;
+    std::shared_ptr<QGraphicsScene> scene_map;
     void callback(cv::Mat mat);
     void init_ros2(int argc, char *argv[]);
 
@@ -43,10 +54,6 @@ private slots:
     void on_Right_Back_clicked();
 
     void on_Stop_clicked();
-
-    void on_pushButton_clicked();
-
-    void on_pushButton_2_clicked();
 
     void pic_auto_clicked();
 
@@ -116,14 +123,22 @@ private slots:
 
     void on_Pump_OFF_clicked();
 
+    void on_lbl_map_img_clicked(QMouseEvent *);
+
+    void on_lbl_map_img_moved(QMouseEvent *);
+
+    void on_lbl_map_img_release(QMouseEvent *);
+
+    void on_lbl_reset_area_clicked();
+
+    void on_lbl_start_clean_clicked();
+
 private:
-    Ui::Widget *ui;
-    QSerialPort *target_board;
-    static const quint16 target_board_vender_id = 1155; //arduino 9025, arduino_softwareserial 1659, mbed 1155
-    static const quint16 target_board_product_id = 14155;  // arduino 67, arduino_softwareserial 8963, mbed 14155
-    QString target_board_name;
+    Ui::Widget *ui;            
     bool target_available;
     QTimer *ip_connect_timer;
+
+    QPoint m_selectedArea_LU, m_selectedArea_RD;
 
     std::unique_ptr<spin_thread> thread;
 

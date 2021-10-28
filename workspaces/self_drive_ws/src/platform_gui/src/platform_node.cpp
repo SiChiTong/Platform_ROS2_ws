@@ -8,9 +8,10 @@ platform_node::platform_node(std::string imgname) : rclcpp::Node ("platform_gui"
   {
     this->imgCallback(msg);
   };  
-  this->sub_image = this->create_subscription<sensor_msgs::msg::Image>(imgname, rclcpp::SensorDataQoS(), func_);
+  this->sub_image = this->create_subscription<sensor_msgs::msg::Image>(imgname, rclcpp::ClockQoS(), func_);
   this->pub_waypoint = this->create_publisher<std_msgs::msg::Int8>("waypoint", 10);
-  this->pub_cmd_W_Br = this->create_publisher<std_msgs::msg::String>("cmd_w_br", 10);
+  this->pub_bbox = this->create_publisher<geometry_msgs::msg::Polygon>("selected_area", 10);
+  this->pub_cmd_gui = this->create_publisher<std_msgs::msg::String>("cmd_gui", 10);
   RCLCPP_INFO(this->get_logger(),"node initalized!");
 }
 

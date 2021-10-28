@@ -7,6 +7,7 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_msgs/msg/int8.hpp>
+#include <geometry_msgs/msg/polygon.hpp>
 
 #include <string>
 #include <memory>
@@ -24,7 +25,8 @@ public:
   platform_node(std::string imgname);
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_image;
   rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr pub_waypoint;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_cmd_W_Br;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_cmd_gui;
+  rclcpp::Publisher<geometry_msgs::msg::Polygon>::SharedPtr pub_bbox;
   void imgCallback(const sensor_msgs::msg::Image::SharedPtr msg) const;
   void set_callback(cvImgCallback callback);
 
