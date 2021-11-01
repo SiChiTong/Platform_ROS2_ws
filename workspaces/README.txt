@@ -138,9 +138,10 @@ source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/ros2_galactic/install/setu
 source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/self_drive_ws/install/setup.bash
 source ~/Documents/GitHub/Platform_ROS2_ws/workspaces/simulation_ws/install/setup.bash
 
-# 미들웨어 선택 (fastrtps(fast dds) 추천)
+# 미들웨어 선택 (fastrtps(fast dds) 추천, ~/.bashrc 추가)
+# 둘 중 하나만 선택할 것.
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-# export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp 
 
 
 # (Optional) Cyclone DDS URI 경로 추가 (~/.bashrc)
