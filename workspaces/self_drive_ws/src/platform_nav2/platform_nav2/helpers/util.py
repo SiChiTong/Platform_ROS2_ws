@@ -158,7 +158,7 @@ def generate_left_tri_matrix(nodes):
         temp = list(np.split(distance_matrix[i], [i])[0])
         left_tri_matrix.append(temp)
 
-    return left_tri_matrix, g.st_path_matrix
+    return left_tri_matrix, g.st_path_magenerate_polygon_countourtrix
 
 
 def generate_polygon_countour(image_name, filter=None, sp=None, sr=None):

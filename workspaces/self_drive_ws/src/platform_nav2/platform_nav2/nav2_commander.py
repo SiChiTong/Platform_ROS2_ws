@@ -2,9 +2,12 @@
 
 from datetime import datetime
 import time
+import yaml
+import os
 
 from geometry_msgs.msg import PoseStamped, Pose, PoseWithCovarianceStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, NavigationResult
+from rcl_interfaces.srv import GetParameters
 import rclpy
 import rclpy.timer
 import numpy as np
@@ -88,11 +91,12 @@ class platformNavigator(BasicNavigator):
         super().__init__()
 
         self.initial_pose = create_pose_from_x_y_yaw(init_x, init_y, init_yaw, self.get_clock())
+        self.param_srv = self.create_client(GetParameters, '/map_server/get_parameters')
 
         self.declare_parameter('waypoints',
                                "[[-14.75,-0.5,0.0], [1.25,0.0,0.0], [10.30,0.0,0.0], [29.75,0.05,0.0], [29.75,8.30,0.0]]")
 
-        self.declare_parameter('robot_base',"robot_base")
+        self.declare_parameter('robot_base',"base_link")
 
         self.declare_parameter('visualization_map',False)
         self.declare_parameter('visualization_bbox',True)
@@ -132,12 +136,27 @@ class platformNavigator(BasicNavigator):
         self.info('Nav2 is ready for use!')
         return
 
+    # def get_map_ros2(self):
+    #     req = GetMap.Request()
+    #     self.result_future_map = self.get_maps_srv.call_async(req)
+    #     rclpy.spin_until_future_complete(self, self.result_future_map)
+    #     map = self.result_future_map.result().map
+    #     return map
+
     def get_map_ros2(self):
-        req = GetMap.Request()
-        self.result_future_map = self.get_maps_srv.call_async(req)
-        rclpy.spin_until_future_complete(self, self.result_future_map)
-        map = self.result_future_map.result().map
-        return map
+        req_param = GetParameters.Request()
+        req_param.names = ["yaml_filename"]
+        result_future_param = self.param_srv.call_async(req_param)
+        rclpy.spin_until_future_complete(self, result_future_param)
+        map_yaml_path = result_future_param.result().values[0].string_value
+
+        with open(map_yaml_path) as f:
+            map_param = yaml.load(f,Loader=yaml.FullLoader)
+            map_split: list = map_yaml_path.split("/")
+            del map_split[-1], map_split[0]
+            map_param['image'] = '/' + os.path.join(*map_split, map_param['image'])
+
+        return map_param
 
     def get_robot_base(self, target:str):
         try:
@@ -178,14 +197,14 @@ class platformNavigator(BasicNavigator):
             self.cost_map.set_waypoint_pose(self.waypoint_target)
 
     def callback_bbox(self, msg: Polygon):
-        # points = [[x1,y1], [x2,y2]]
-        points = [[int(p.x), int(p.y)] for p in msg.points]
-
-        self.map.set_bbox(points, ratio_x=2.0, ratio_y=2.0)
-        self.info(str(points))
+        if self.map is not None:
+            # points = [[x1,y1], [x2,y2]]
+            points = [[int(p.x), int(p.y)] for p in msg.points]
+            self.map.set_bbox(points, ratio_x=2.0, ratio_y=2.0)
+            self.info(str(points))
 
 class ProcessedMap():
-    def __init__(self, map, ratio_x=1.0, ratio_y=1.0):
+    def __init__(self, map, ratio_x=1.0, ratio_y=1.0, robot_size_x=0.6, robot_size_y=0.4):
         if type(map) == OccupancyGrid:
             size_x = int(map.info.width)
             size_y = int(map.info.height)
@@ -193,6 +212,7 @@ class ProcessedMap():
             origin = map.info.origin
             np_map : np.ndarray = np.array(map.data).reshape([size_y, size_x]).astype(np.uint8)
             np_map[np.isin(np_map, [100])] = 255
+            np_map = np.flip(np_map,0)
 
         elif type(map) == Costmap:
             size_x = map.metadata.size_x
@@ -200,8 +220,22 @@ class ProcessedMap():
             resolution = map.metadata.resolution
             origin = map.metadata.origin
             np_map = np.array(map.data).reshape([size_y, size_x])
+            np_map = np.flip(np_map,0)
 
-        np_map = np.flip(np_map,0)
+        elif type(map) == dict:
+            np_map = cv2.imread(map['image'])
+            np_map = cv2.cvtColor(np_map,cv2.COLOR_BGR2GRAY)
+            size_x = np_map.shape[1]
+            size_y = np_map.shape[0]
+            resolution = map["resolution"]
+            origin_list = map["origin"]
+            origin = Pose()
+            origin.position.x = origin_list[0]
+            origin.position.y = origin_list[1]
+
+        else:
+            print("Not supported Type!")
+            return
 
         self.np_map = np_map
         self.origin: Pose = origin
@@ -209,6 +243,8 @@ class ProcessedMap():
         self.robot_base = Pose()
         self.size_x = size_x
         self.size_y = size_y
+        self.robot_size_x = robot_size_x
+        self.robot_size_y = robot_size_y
         self.ratio_x = ratio_x
         self.ratio_y = ratio_y
 
@@ -251,6 +287,30 @@ class ProcessedMap():
         y = self.robot_base.position.y
         return x, y, yaw
 
+    def get_robot_rect(self, robot_x, robot_y, robot_yaw):
+        robot_real = Rectangle(robot_x, robot_y, self.robot_size_y, self.robot_size_x)
+
+        p1, p2, p3, p4 = robot_real.rotate_rectangle(round(robot_yaw,1))
+
+        p1_viz = self.position_to_np(p1.x, p1.y)
+        p2_viz = self.position_to_np(p2.x, p2.y)
+        p3_viz = self.position_to_np(p3.x, p3.y)
+        p4_viz = self.position_to_np(p4.x, p4.y)
+
+        return np.array([p1_viz, p2_viz, p3_viz, p4_viz], dtype=np.int32)
+
+    def get_robot_rect_bbox(self, robot_x, robot_y, robot_yaw):
+        robot_real = Rectangle(robot_x, robot_y, self.robot_size_y, self.robot_size_x)
+
+        p1, p2, p3, p4 = robot_real.rotate_rectangle(round(robot_yaw,1))
+
+        p1_viz = self.position_to_np_bbox(p1.x, p1.y)
+        p2_viz = self.position_to_np_bbox(p2.x, p2.y)
+        p3_viz = self.position_to_np_bbox(p3.x, p3.y)
+        p4_viz = self.position_to_np_bbox(p4.x, p4.y)
+
+        return np.array([p1_viz, p2_viz, p3_viz, p4_viz], dtype=np.int32)
+
     def origin_np(self):
         return int(-self.origin.position.x / self.resolution), int(self.size_y + self.origin.position.y / self.resolution)
 
@@ -260,6 +320,15 @@ class ProcessedMap():
         x_ref, y_ref = self.origin_np()
 
         return (x_ref + x_np), (y_ref + y_np)
+
+    def position_to_np_bbox(self, x, y):
+        x_np = int(x / self.resolution)
+        y_np = int(-y / self.resolution)
+
+        x_LU, y_LU = self.bbox[0][0], self.bbox[0][1]
+        x_ref, y_ref = self.origin_np()
+
+        return (x_ref + x_np - x_LU), (y_ref + y_np - y_LU)
 
     def np_to_position_map(self, x, y):
         x_ref, y_ref = self.origin_np()
@@ -278,16 +347,7 @@ class ProcessedMap():
 
         origin_x_np, origin_y_np = self.origin_np()
         robot_x, robot_y, robot_yaw = self.get_robot_base()
-        robot_real = Rectangle(robot_x, robot_y, 0.4, 0.6)
-
-        p1, p2, p3, p4 = robot_real.rotate_rectangle(round(robot_yaw,1))
-
-        p1_viz = self.position_to_np(p1.x, p1.y)
-        p2_viz = self.position_to_np(p2.x, p2.y)
-        p3_viz = self.position_to_np(p3.x, p3.y)
-        p4_viz = self.position_to_np(p4.x, p4.y)
-
-        points_robot_viz = np.array([p1_viz, p2_viz, p3_viz, p4_viz], dtype=np.int32)
+        points_robot_viz = self.get_robot_rect(robot_x, robot_y, robot_yaw)
 
         if hasattr(self,"waypoint") and (self.waypoint is not None):
             w_x, w_y = self.position_to_np(self.waypoint.position.x, self.waypoint.position.y)
@@ -312,6 +372,11 @@ class ProcessedMap():
             size_y = p2[1] - p1[1]
 
             map_result = self.np_map[p1[1]:p2[1],p1[0]:p2[0]]
+
+            robot_x, robot_y, robot_yaw = self.get_robot_base()
+            points_robot_viz = self.get_robot_rect_bbox(robot_x, robot_y, robot_yaw)
+
+            map_result = cv2.fillPoly(map_result, [points_robot_viz], color=[0, 255, 0])
             map_result = cv2.resize(map_result, [int(size_x * self.ratio_x_bbox), int(size_y * self.ratio_y_bbox)])
             return map_result
         else:

@@ -27,7 +27,7 @@ def generate_polygon_countour_np(np_map):
     for i, cnt in enumerate(countours):
         episilon = 0.01 * cv2.arcLength(cnt, True)
         approxes.append(cv2.approxPolyDP(cnt, episilon, True))
-    return approxes
+    return approxes, threshold
 
 def main():
     rclpy.init()
@@ -48,19 +48,12 @@ def main():
 
     rate = rate_mine(30.0)
 
-    def click_callback_map(event, x, y, flags, param):
-        if event == cv2.EVENT_LBUTTONDOWN:
-            map: ProcessedMap = navigator.map
-            x_real,y_real = map.np_to_position_map(x,y)
-            navigator.info(f"x:{x_real:.2f}, y:{y_real:.2f}")
-
     def click_callback_bbox(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
             map: ProcessedMap = navigator.map
             x_real,y_real = map.np_to_position_bbox(x,y)
             navigator.info(f"x:{x_real:.2f}, y:{y_real:.2f}")
 
-    map_win_name = "map"
     bbox_win_name = "bbox"
 
     while rclpy.ok():
@@ -82,11 +75,44 @@ def main():
             navigator.get_logger().info("Running...")
 
         map: ProcessedMap = navigator.map
-        bbox_area = map.visualization_bbox()
-        if bbox_area is not None:
-            cv2.imshow(bbox_win_name,bbox_area)
-            cv2.setMouseCallback(bbox_win_name,click_callback_bbox)
+        bbox_area: np.ndarray = map.visualization_bbox()
 
+        if (bbox_area is not None):
+            bbox_area_origin = bbox_area.copy()
+            scale = bbox_area.shape
+            ratio_dilate = 0.05
+            kernel = np.ones([int(scale[0]*ratio_dilate),int(scale[1]*ratio_dilate)],np.uint8)
+            # bbox_area = cv2.dilate(bbox_area, kernel, iterations = 1)
+            bbox_area = cv2.erode(bbox_area, kernel, iterations = 1)
+            bbox_area = cv2.copyMakeBorder(bbox_area, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=[255])
+
+            approxes, bbox_area_th = generate_polygon_countour_np(bbox_area)
+            bbox_area_viz = cv2.cvtColor(bbox_area_origin,cv2.COLOR_GRAY2RGB)
+            for approx in approxes:
+                bbox_area_viz = cv2.drawContours(bbox_area_viz, [approx], 0, (0,255,0), 5)
+
+            polygons = [np.squeeze(x) for x in approxes]
+
+            y_limit_lower = min([pt[1] for pt in polygons[0]])
+            y_limit_upper = max([pt[1] for pt in polygons[0]])
+
+            x_limit_lower = min([pt[0] for pt in polygons[0]])
+            x_limit_upper = max([pt[0] for pt in polygons[0]])
+
+            # boundary_basic certex order
+            boundary_basic = [[x_limit_lower, y_limit_lower], [x_limit_upper, y_limit_lower], [x_limit_upper, y_limit_upper], [x_limit_lower, y_limit_upper]]
+
+            # Among all the polygon cv2 generated, [1:] are the inner obstacles
+            obstacles_basic = polygons[1:]
+            # source_basic, dest_basic = [[10, 10], [1000, 500]]
+
+            boundary, sorted_vertices, obstacles = extract_vertex(boundary_basic, obstacles_basic)
+            draw_problem(boundary, obstacles)
+
+            open_line_segments = get_vertical_line(sorted_vertices, obstacles,  y_limit_lower, y_limit_upper)
+            plt.show(block=True)
+
+            cv2.imshow("asd",bbox_area_th)
 
         k = cv2.waitKey(1) & 0xFF
 
