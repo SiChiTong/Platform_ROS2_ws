@@ -26,6 +26,7 @@ from launch_ros.actions import Node
 
 package_name = 'platform_control'
 package_prefix = get_package_share_directory(package_name)
+platform_nav2_prefix = get_package_share_directory('platform_nav2')
 nav2_launch_file_dir = os.path.join(get_package_share_directory('nav2_bringup'), 'launch')
 rviz_config_dir = os.path.join(package_prefix, 'rviz', 'platform_navigation2.rviz')
 
@@ -49,7 +50,7 @@ def generate_launch_description():
 
     gui_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(package_prefix, 'launch', 'nav2_gui.launch.py')
+            os.path.join(platform_nav2_prefix, 'launch', 'nav2_gui.launch.py')
         ),
         launch_arguments={
             'robot_base': robot_name,
