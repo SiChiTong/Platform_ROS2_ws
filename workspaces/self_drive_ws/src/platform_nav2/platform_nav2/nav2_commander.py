@@ -94,7 +94,7 @@ class platformNavigator(BasicNavigator):
         self.param_srv = self.create_client(GetParameters, '/map_server/get_parameters')
 
         self.declare_parameter('waypoints',
-                               "[[-14.75,-0.5,0.0], [1.25,0.0,0.0], [10.30,0.0,0.0], [29.75,0.05,0.0], [29.75,8.30,0.0]]")
+                               "[[-14.75,-0.5,0.0], [1.25,-0.5,0.0], [10.30,0.0,0.0], [29.75,0.05,0.0], [29.75,8.30,0.0]]")
 
         self.declare_parameter('robot_base',"base_link")
 
@@ -351,9 +351,9 @@ class ProcessedMap():
 
         if hasattr(self,"waypoint") and (self.waypoint is not None):
             w_x, w_y = self.position_to_np(self.waypoint.position.x, self.waypoint.position.y)
-            np_map = cv2.circle(np_map, [w_x, w_y], 3, [255, 0, 0], thickness=-1)
+            np_map = cv2.circle(np_map, [w_x, w_y], 8, [255, 0, 0], thickness=-1)
 
-        np_map = cv2.circle(np_map, [origin_x_np, origin_y_np], 3, color=[0, 0, 255], thickness=-1)
+        np_map = cv2.circle(np_map, [origin_x_np, origin_y_np], 8, color=[0, 0, 255], thickness=-1)
         np_map = cv2.fillPoly(np_map, [points_robot_viz], color=[0, 255, 0])
         np_map = cv2.resize(np_map, [int(self.size_x * self.ratio_x), int(self.size_y * self.ratio_y)])
 
