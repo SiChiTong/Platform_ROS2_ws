@@ -63,7 +63,7 @@ def generate_launch_description():
             'map': map_dir,
             'params_file': param_dir,
             'default_nav_to_pose_bt_xml': nav_to_pose_bt_xml,
-            # 'default_nav_through_poses_bt_xml': nav_through_poses_bt_xml,
+            'default_nav_through_poses_bt_xml': nav_through_poses_bt_xml,
         }.items(),
     )
 
