@@ -30,24 +30,26 @@ package_name = 'platform_nav2'
 os.environ['TURTLEBOT3_MODEL'] = "waffle"
 TURTLEBOT3_MODEL = os.environ['TURTLEBOT3_MODEL']
 
+package_prefix = get_package_share_directory(package_name)
+platform_control_prefix = get_package_share_directory('platform_control')
+
+map_file = "map.yaml"
+nav_to_pose_bt_xml_file = "nav_test.xml"
+param_file_name = 'nav2_platform.yaml'
+nav_through_poses_bt_xml_file = "clean_test.xml"
+robot_name = "robot_base"
+
 def generate_launch_description():
-    package_prefix = get_package_share_directory(package_name)
 
-    platform_control_prefix = get_package_share_directory('platform_control')
-
-    map_file = "map.yaml"
     map_dir = LaunchConfiguration('map_file',
                                   default=os.path.join(platform_control_prefix, 'map', map_file))
 
-    param_file_name = 'nav2_platform.yaml'
     param_dir = LaunchConfiguration('params_file',
                                     default=os.path.join(package_prefix,'config',param_file_name))
 
-    nav_to_pose_bt_xml_file = "nav_test.xml"
     nav_to_pose_bt_xml = LaunchConfiguration('default_nav_to_pose_bt_xml',
                                  default=os.path.join(package_prefix, 'behavior_trees', nav_to_pose_bt_xml_file))
 
-    nav_through_poses_bt_xml_file = "clean_test.xml"
     nav_through_poses_bt_xml = LaunchConfiguration('default_nav_through_poses_bt_xml',
                                  default=os.path.join(package_prefix, 'behavior_trees', nav_through_poses_bt_xml_file))
 
@@ -61,8 +63,22 @@ def generate_launch_description():
             'map': map_dir,
             'params_file': param_dir,
             'default_nav_to_pose_bt_xml': nav_to_pose_bt_xml,
-            'default_nav_through_poses_bt_xml': nav_through_poses_bt_xml,
+            # 'default_nav_through_poses_bt_xml': nav_through_poses_bt_xml,
         }.items(),
+    )
+
+    visualization_bbox = LaunchConfiguration('visualization_bbox', default=True)
+    visualization_map = LaunchConfiguration('visualization_map', default=False)
+
+    gui_cmd = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(package_prefix, 'launch', 'nav2_gui.launch.py')
+        ),
+        launch_arguments={
+            'robot_base': robot_name,
+            'visualization_map': visualization_map,
+            'visualization_bbox': visualization_bbox,
+        }.items()
     )
 
     rviz_node = Node(
@@ -76,6 +92,7 @@ def generate_launch_description():
 
     # Add the commands to the launch description
     ld.add_action(nav2_cmd)
+    ld.add_action(gui_cmd)
     ld.add_action(rviz_node)
 
     return ld
