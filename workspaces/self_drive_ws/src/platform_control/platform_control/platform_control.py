@@ -160,7 +160,16 @@ class PlatformControlNode(Node):
             self.cfg_t265.enable_device(devices_dic['Intel RealSense T265'])
             self.cfg_t265.enable_stream(rs.stream.pose)
             profile : rs.pipeline_profile = self.cfg_t265.resolve(self.pipe_t265)
-            # self.t265_WheelOdom = self.load_t265_wheelodom_config(profile,json_path)
+            self.t265_WheelOdom = self.load_t265_wheelodom_config(profile,json_path)
+
+            #if(hasattr(self,"t265_WheelOdom")):
+                #self.x_robot_to_t265 = 0.0
+                #self.y_robot_to_t265 = 0.0
+            self.x_robot_to_t265 = - 0.380
+            self.y_robot_to_t265 = 0
+
+
+            self.print_info(f"x: {self.x_robot_to_t265} / y:{self.y_robot_to_t265}")
             self.pipe_t265.start(self.cfg_t265)
             self.print_info("Wait for Initalization for T265...")
             time.sleep(2.0)
@@ -223,6 +232,7 @@ class PlatformControlNode(Node):
         yaw_encoder = dict_str['Y'] / 180.0 * math.pi
 
         if (hasattr(self, "pipe_t265")) & (dict_str.__len__() > 3):
+
             self.send_t265_odom(dict_str["VX"],dict_str["VY"])
             vx_t265, vy_t265, x_t265, y_t265, yaw_t265 = self.get_pose_t265()
 
@@ -415,12 +425,11 @@ class PlatformControlNode(Node):
             self.t265_WheelOdom.send_wheel_odometry(wo_sensor_id, frame_num, v)
 
     def calculate_t265_to_robot_frame(self, x_t265, y_t265, vx_t265, vy_t265, d_yaw_t265, yaw_t265):
-        x_robot_to_t265 = - 0.16625
-        y_robot_to_t265 = 0
-        L = math.sqrt((x_robot_to_t265 * x_robot_to_t265) + (y_robot_to_t265 * y_robot_to_t265))
 
-        x_robot = x_t265 + (L * math.cos(yaw_t265) + x_robot_to_t265)
-        y_robot = y_t265 + (L * math.sin(yaw_t265) + y_robot_to_t265)
+        L = math.sqrt((self.x_robot_to_t265 * self.x_robot_to_t265) + (self.y_robot_to_t265 * self.y_robot_to_t265))
+
+        x_robot = x_t265 + (L * math.cos(yaw_t265) + self.x_robot_to_t265)
+        y_robot = y_t265 + (L * math.sin(yaw_t265) + self.y_robot_to_t265)
 
         vx_robot = vx_t265
         vy_robot = vy_t265 + L * d_yaw_t265
@@ -608,6 +617,8 @@ class PlatformControlNode(Node):
 
     def callback_gui(self, msg : std_msgs.msg.String):
         if(self.ser.writable()):
+            self.ser.write(msg.data.encode())
+            self.ser.write(msg.data.encode())
             self.ser.write(msg.data.encode())
             self.print_info(f"send: {msg.data.encode()}")
         else:
