@@ -23,6 +23,11 @@ from std_msgs.msg import Int8
 import cv_bridge
 import math
 
+try:
+    from planner_for_cleaning import *
+except ModuleNotFoundError:
+    from .planner_for_cleaning import *
+
 import threading
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
@@ -247,6 +252,7 @@ class ProcessedMap():
         self.robot_size_y = robot_size_y
         self.ratio_x = ratio_x
         self.ratio_y = ratio_y
+        self.try_to_calculate_path = False
 
         self.set_robot_base(0, 0, 0)
 
@@ -279,6 +285,7 @@ class ProcessedMap():
         self.bbox = points
         self.ratio_x_bbox = ratio_x
         self.ratio_y_bbox = ratio_y
+        self.try_to_calculate_path = False
 
     def get_robot_base(self):
         _, _, yaw = euler_from_quaternion(self.robot_base.orientation.x, self.robot_base.orientation.y,
@@ -338,7 +345,7 @@ class ProcessedMap():
         x_ref, y_ref = self.origin_np()
         x_LU, y_LU = self.bbox[0][0], self.bbox[0][1]
         x_bbox_to_map = x_LU + x / self.ratio_x_bbox
-        y_bbox_to_map = y_LU + y / self.ratio_x_bbox
+        y_bbox_to_map = y_LU + y / self.ratio_y_bbox
         return (x_bbox_to_map / self.ratio_x - x_ref) * self.resolution, -(y_bbox_to_map / self.ratio_y - y_ref) * self.resolution
 
     def visualization(self):
@@ -364,6 +371,34 @@ class ProcessedMap():
 
         return np_map
 
+    def get_map_bbox(self):
+        if hasattr(self,"bbox") and (self.bbox is not None):
+            p1 = self.bbox[0]
+            p2 = self.bbox[1]
+            size_x = p2[0] - p1[0]
+            size_y = p2[1] - p1[1]
+
+            map_result = self.np_map[p1[1]:p2[1],p1[0]:p2[0]].copy()
+            map_result = cv2.resize(map_result, [int(size_x * self.ratio_x_bbox), int(size_y * self.ratio_y_bbox)])
+            return map_result
+        else:
+            return None
+
+    def calculate_cleaning_path(self, bbox_origin):
+
+        # try just once in each bbox
+        if not self.try_to_calculate_path:
+            self.try_to_calculate_path = True
+            try:
+                bbox_resize = cv2.resize(bbox_origin, [int(bbox_origin.shape[1] * self.ratio_x_bbox),
+                                                       int(bbox_origin.shape[0] * self.ratio_y_bbox)])
+                self.cleaning_path= find_cleaning_path(bbox_resize, self)
+            except Exception as e:
+                self.cleaning_path = None
+                print(e)
+
+        return self.cleaning_path
+
     def visualization_bbox(self):
         if hasattr(self,"bbox") and (self.bbox is not None):
             p1 = self.bbox[0]
@@ -371,13 +406,23 @@ class ProcessedMap():
             size_x = p2[0] - p1[0]
             size_y = p2[1] - p1[1]
 
-            map_result = self.np_map[p1[1]:p2[1],p1[0]:p2[0]]
+            map_origin = self.np_map[p1[1]:p2[1],p1[0]:p2[0]]
+            map_result = map_origin.copy()
+
+            if map_result is not None:
+                map_result = cv2.cvtColor(map_result,cv2.COLOR_GRAY2RGB)
 
             robot_x, robot_y, robot_yaw = self.get_robot_base()
             points_robot_viz = self.get_robot_rect_bbox(robot_x, robot_y, robot_yaw)
 
             map_result = cv2.fillPoly(map_result, [points_robot_viz], color=[0, 255, 0])
             map_result = cv2.resize(map_result, [int(size_x * self.ratio_x_bbox), int(size_y * self.ratio_y_bbox)])
+
+            cleaning_path = self.calculate_cleaning_path(map_origin)
+
+            if cleaning_path is not None:
+                map_result = visualize_path(map_result,self.cleaning_path)
+
             return map_result
         else:
             return None

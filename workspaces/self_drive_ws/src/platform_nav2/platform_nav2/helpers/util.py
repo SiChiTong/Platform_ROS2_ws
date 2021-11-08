@@ -271,13 +271,13 @@ def get_vertical_line(sorted_vertices, obstacles, y_limit_lower, y_limit_upper):
             open_line_segments.append([None, None])
         elif (lower_gone):
             open_line_segments.append([None, upper_obs_pt])
-            plt.plot( [pt.x, upper_obs_pt.x],  [pt.y, upper_obs_pt.y] )
+            # plt.plot( [pt.x, upper_obs_pt.x],  [pt.y, upper_obs_pt.y] )
         elif (upper_gone):
             open_line_segments.append([lower_obs_pt, None])
-            plt.plot( [lower_obs_pt.x, pt.x],  [lower_obs_pt.y, pt.y] )
+            # plt.plot( [lower_obs_pt.x, pt.x],  [lower_obs_pt.y, pt.y] )
         else:
             open_line_segments.append([lower_obs_pt, upper_obs_pt])
-            plt.plot( [lower_obs_pt.x, upper_obs_pt.x],  [lower_obs_pt.y, upper_obs_pt.y] )
+            # plt.plot( [lower_obs_pt.x, upper_obs_pt.x],  [lower_obs_pt.y, upper_obs_pt.y] )
     return open_line_segments
 
 

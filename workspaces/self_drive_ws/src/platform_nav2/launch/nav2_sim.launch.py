@@ -56,7 +56,7 @@ def generate_launch_description():
     nav_through_poses_bt_xml = LaunchConfiguration('default_nav_through_poses_bt_xml',
                                  default=os.path.join(package_prefix, 'behavior_trees', nav_through_poses_bt_xml_file))
 
-    visualization_bbox = LaunchConfiguration('visualization_bbox', default=False)
+    visualization_bbox = LaunchConfiguration('visualization_bbox', default=True)
     visualization_map = LaunchConfiguration('visualization_map', default=False)
 
     pkg_launch_file_dir = os.path.join(package_prefix, 'launch')
