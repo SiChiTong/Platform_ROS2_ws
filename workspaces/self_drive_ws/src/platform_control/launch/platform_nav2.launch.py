@@ -29,6 +29,8 @@ package_prefix = get_package_share_directory(package_name)
 platform_nav2_prefix = get_package_share_directory('platform_nav2')
 nav2_launch_file_dir = os.path.join(get_package_share_directory('nav2_bringup'), 'launch')
 rviz_config_dir = os.path.join(package_prefix, 'rviz', 'platform_navigation2.rviz')
+visualization_bbox_ = True
+visualization_map_ = False
 
 def generate_launch_description():
 
@@ -44,9 +46,9 @@ def generate_launch_description():
     param_dir = LaunchConfiguration('params_file',
                                     default=os.path.join(package_prefix,'param_nav',param_file_name))
 
-    visualization_bbox = LaunchConfiguration('visualization_bbox', default=True)
+    visualization_bbox = LaunchConfiguration('visualization_bbox', default=visualization_bbox_)
 
-    visualization_map = LaunchConfiguration('visualization_map', default=False)
+    visualization_map = LaunchConfiguration('visualization_map', default=visualization_map_)
 
     gui_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -60,6 +62,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+            
         DeclareLaunchArgument(
             'map',
             default_value=map_dir,
