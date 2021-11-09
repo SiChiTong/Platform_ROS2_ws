@@ -101,6 +101,7 @@ def generate_launch_description():
             description='Full path to the behavior tree xml file to use'),
 
         launch.actions.LogInfo(msg=nav_to_pose_bt_xml),
+
         launch.actions.LogInfo(msg=nav_through_poses_bt_xml),
 
         Node(

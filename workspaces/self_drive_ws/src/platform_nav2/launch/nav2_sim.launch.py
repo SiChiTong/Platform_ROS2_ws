@@ -48,13 +48,13 @@ def generate_launch_description():
     param_dir = LaunchConfiguration('params_file',
                                     default=os.path.join(package_prefix,'config',param_file_name))
 
-    nav_to_pose_bt_xml_file = "nav_test.xml"
+    nav_to_pose_bt_xml_file = "nav_platform.xml"
     nav_to_pose_bt_xml = LaunchConfiguration('default_nav_to_pose_bt_xml',
                                  default=os.path.join(package_prefix, 'behavior_trees', nav_to_pose_bt_xml_file))
 
-    nav_through_poses_bt_xml_file = "clean_test.xml"
-    nav_through_poses_bt_xml = LaunchConfiguration('default_nav_through_poses_bt_xml',
-                                 default=os.path.join(package_prefix, 'behavior_trees', nav_through_poses_bt_xml_file))
+    # nav_through_poses_bt_xml_file = "clean_test.xml"
+    # nav_through_poses_bt_xml = LaunchConfiguration('default_nav_through_poses_bt_xml',
+#                                  default=os.path.join(package_prefix, 'behavior_trees', nav_through_poses_bt_xml_file))
 
     visualization_bbox = LaunchConfiguration('visualization_bbox', default=True)
     visualization_map = LaunchConfiguration('visualization_map', default=False)
@@ -105,7 +105,7 @@ def generate_launch_description():
             'use_sim_time': use_sim_time,
             'params_file': param_dir,
             'default_nav_to_pose_bt_xml': nav_to_pose_bt_xml,
-            'default_nav_through_poses_bt_xml': nav_through_poses_bt_xml,
+            # 'default_nav_through_poses_bt_xml': nav_through_poses_bt_xml,
         }.items(),
     )
 

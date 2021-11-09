@@ -554,36 +554,41 @@ void Widget::on_lbl_start_clean_clicked()
 
 void Widget::on_waypoint_1_clicked()
 {
-  std_msgs::msg::Int8 msg;
-  msg.data = 1;
+  geometry_msgs::msg::Point32 msg;
+  msg.x = ui->le_loaction_x_1->text().toFloat();
+  msg.y = ui->le_loaction_y_1->text().toFloat();
   this->node_ptr->pub_waypoint->publish(msg);
 }
 
 void Widget::on_waypoint_2_clicked()
 {
-  std_msgs::msg::Int8 msg;
-  msg.data = 2;
+  geometry_msgs::msg::Point32 msg;
+  msg.x = ui->le_loaction_x_2->text().toFloat();
+  msg.y = ui->le_loaction_y_2->text().toFloat();
   this->node_ptr->pub_waypoint->publish(msg);
 }
 
 void Widget::on_waypoint_3_clicked()
 {
-  std_msgs::msg::Int8 msg;
-  msg.data = 3;
+  geometry_msgs::msg::Point32 msg;
+  msg.x = ui->le_loaction_x_3->text().toFloat();
+  msg.y = ui->le_loaction_y_3->text().toFloat();
   this->node_ptr->pub_waypoint->publish(msg);
 }
 
 void Widget::on_waypoint_4_clicked()
 {
-  std_msgs::msg::Int8 msg;
-  msg.data = 4;
+  geometry_msgs::msg::Point32 msg;
+  msg.x = ui->le_loaction_x_4->text().toFloat();
+  msg.y = ui->le_loaction_y_4->text().toFloat();
   this->node_ptr->pub_waypoint->publish(msg);
 }
 
 void Widget::on_waypoint_5_clicked()
 {
-  std_msgs::msg::Int8 msg;
-  msg.data = 5;
+  geometry_msgs::msg::Point32 msg;
+  msg.x = ui->le_loaction_x_5->text().toFloat();
+  msg.y = ui->le_loaction_y_5->text().toFloat();
   this->node_ptr->pub_waypoint->publish(msg);
 }
 

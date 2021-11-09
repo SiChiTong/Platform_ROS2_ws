@@ -36,7 +36,7 @@ platform_control_prefix = get_package_share_directory('platform_control')
 map_file = "map.yaml"
 nav_to_pose_bt_xml_file = "nav_test.xml"
 param_file_name = 'nav2_platform.yaml'
-nav_through_poses_bt_xml_file = "clean_test.xml"
+# nav_through_poses_bt_xml_file = "clean_test.xml"
 robot_name = "robot_base"
 
 def generate_launch_description():
@@ -50,8 +50,8 @@ def generate_launch_description():
     nav_to_pose_bt_xml = LaunchConfiguration('default_nav_to_pose_bt_xml',
                                  default=os.path.join(package_prefix, 'behavior_trees', nav_to_pose_bt_xml_file))
 
-    nav_through_poses_bt_xml = LaunchConfiguration('default_nav_through_poses_bt_xml',
-                                 default=os.path.join(package_prefix, 'behavior_trees', nav_through_poses_bt_xml_file))
+    # nav_through_poses_bt_xml = LaunchConfiguration('default_nav_through_poses_bt_xml',
+    #                              default=os.path.join(package_prefix, 'behavior_trees', nav_through_poses_bt_xml_file))
 
     rviz_config_file = os.path.join(package_prefix, 'rviz', 'platform_nav2.rviz')
     pkg_launch_file_dir = os.path.join(package_prefix, 'launch')
@@ -63,7 +63,7 @@ def generate_launch_description():
             'map': map_dir,
             'params_file': param_dir,
             'default_nav_to_pose_bt_xml': nav_to_pose_bt_xml,
-            'default_nav_through_poses_bt_xml': nav_through_poses_bt_xml,
+            # 'default_nav_through_poses_bt_xml': nav_through_poses_bt_xml,
         }.items(),
     )
 
@@ -93,6 +93,6 @@ def generate_launch_description():
     # Add the commands to the launch description
     ld.add_action(nav2_cmd)
     ld.add_action(gui_cmd)
-    ld.add_action(rviz_node)
+    # ld.add_action(rviz_node)
 
     return ld

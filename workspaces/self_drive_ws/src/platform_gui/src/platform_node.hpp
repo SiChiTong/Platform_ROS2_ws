@@ -6,7 +6,7 @@
 
 #include <sensor_msgs/msg/image.hpp>
 #include <std_msgs/msg/string.hpp>
-#include <std_msgs/msg/int8.hpp>
+#include <geometry_msgs/msg/point32.hpp>
 #include <geometry_msgs/msg/polygon.hpp>
 
 #include <string>
@@ -14,6 +14,9 @@
 #include <QtDebug>
 #include <QThread>
 #include <functional>
+
+#include "rclcpp/qos.hpp"
+#include "rmw/types.h"
 
 typedef std::function<void(cv::Mat)> cvImgCallback;
 
@@ -24,7 +27,7 @@ class platform_node : public rclcpp::Node
 public:
   platform_node(std::string imgname);
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_image;
-  rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr pub_waypoint;
+  rclcpp::Publisher<geometry_msgs::msg::Point32>::SharedPtr pub_waypoint;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_cmd_gui;
   rclcpp::Publisher<geometry_msgs::msg::Polygon>::SharedPtr pub_bbox;
   void imgCallback(const sensor_msgs::msg::Image::SharedPtr msg) const;

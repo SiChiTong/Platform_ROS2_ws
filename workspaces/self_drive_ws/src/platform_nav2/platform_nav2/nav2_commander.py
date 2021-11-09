@@ -19,9 +19,13 @@ from nav_msgs.srv import GetMap
 from nav2_msgs.msg import Costmap
 from geometry_msgs.msg import TransformStamped, Polygon, Point32
 from sensor_msgs.msg import Image
-from std_msgs.msg import Int8
+from std_msgs.msg import Int8, String
 import cv_bridge
-import math
+from enum import Enum
+from action_msgs.msg import GoalStatus
+
+from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSHistoryPolicy, \
+                      QoSLivelinessPolicy, QoSReliabilityPolicy, QoSPresetProfiles
 
 try:
     from planner_for_cleaning import *
@@ -30,6 +34,10 @@ except ModuleNotFoundError:
 
 import threading
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+
+class PlatformController(Enum):
+    FollowPath = "FollowPath"
+    Cleaning = "Cleaning"
 
 def euler_from_quaternion(x, y, z, w):
     """
@@ -98,9 +106,6 @@ class platformNavigator(BasicNavigator):
         self.initial_pose = create_pose_from_x_y_yaw(init_x, init_y, init_yaw, self.get_clock())
         self.param_srv = self.create_client(GetParameters, '/map_server/get_parameters')
 
-        self.declare_parameter('waypoints',
-                               "[[-14.75,-0.5,0.0], [1.25,-0.5,0.0], [10.30,0.0,0.0], [29.75,0.05,0.0], [29.75,8.30,0.0]]")
-
         self.declare_parameter('robot_base',"base_link")
 
         self.declare_parameter('visualization_map',False)
@@ -113,23 +118,26 @@ class platformNavigator(BasicNavigator):
         self.info(f"map: {self.isVisualization_map}")
         self.info(f"bbox: {self.isVisualization_bbox}")
 
-        self.waypoints = []
         self.waypoint_target = None
-
-        try:
-            exec("self.waypoints = "+self.get_parameter('waypoints').value)
-        except:
-            print(f"Can't load waypoints parameter. {self.get_parameter('waypoints').value}")
-            self.waypoints = []
 
         self.get_maps_srv = self.create_client(GetMap, '/map_server/map')
 
         self.buffer = Buffer(node=self)
         self.tf_listener = TransformListener(self.buffer, self)
         self.pub_map_img = self.create_publisher(Image, '/processed_map',1)
-        self.sub_waypoint = self.create_subscription(Int8, "/waypoint", self.callback_waypoint, 5)
-        self.sub_bbox = self.create_subscription(Polygon, "/selected_area", self.callback_bbox, 5)
 
+        custom_profile = QoSProfile(
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=5,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+            liveliness=QoSLivelinessPolicy.AUTOMATIC,
+            avoid_ros_namespace_conventions=False
+        )
+        self.pub_controller = self.create_publisher(String, '/selected_controller', custom_profile)
+
+        self.sub_waypoint = self.create_subscription(Point32, "/waypoint", self.callback_waypoint, custom_profile)
+        self.sub_bbox = self.create_subscription(Polygon, "/selected_area", self.callback_bbox, custom_profile)
         self.map = None
         self.cost_map = ProcessedMap(Costmap())
 
@@ -140,6 +148,24 @@ class platformNavigator(BasicNavigator):
         self._waitForNodeToActivate('bt_navigator')
         self.info('Nav2 is ready for use!')
         return
+
+    def isNavComplete(self):
+        """Check if the navigation request of any type is complete yet."""
+        if not self.result_future:
+            # task was cancelled or completed
+            return True
+        rclpy.spin_until_future_complete(self, self.result_future, timeout_sec=0.10)
+        if self.result_future.result():
+            self.status = self.result_future.result().status
+            if self.status != GoalStatus.STATUS_SUCCEEDED:
+                self.debug(f'Goal with failed with status code: {self.status}')
+                return True
+        else:
+            # Timed out, still processing, not complete yet
+            return False
+
+        self.debug('Goal succeeded!')
+        return True
 
     # def get_map_ros2(self):
     #     req = GetMap.Request()
@@ -177,6 +203,12 @@ class platformNavigator(BasicNavigator):
     def set_cost_map(self, map: Costmap, ratio_x=1.0, ratio_y=1.0):
         self.cost_map = ProcessedMap(map, ratio_x=ratio_x, ratio_y=ratio_y)
 
+    def set_controller(self, controller: PlatformController):
+        result = String()
+        result.data = controller.value
+        # self.info(f"Controller: {result.data}")
+        self.pub_controller.publish(result)
+
     def update_map_data(self, str_robot=None, ratio_x=1.0, ratio_y=1.0):
         if(str_robot is None): str_robot=self.robot_base
 
@@ -191,15 +223,10 @@ class platformNavigator(BasicNavigator):
 
         # self.cost_map = costmap
 
-    def callback_waypoint(self, msg: Int8):
-        waypoint = self.waypoints[msg.data - 1]
-        waypoint_pose = create_pose_from_x_y_yaw(waypoint[0], waypoint[1], waypoint[2], clock=self.get_clock())
-
+    def callback_waypoint(self, msg: Point32):
+        # x, y, z = x, y, yaw
+        waypoint_pose = create_pose_from_x_y_yaw(msg.x, msg.y, msg.z, clock=self.get_clock())
         self.waypoint_target = waypoint_pose
-
-        if self.waypoint_target != None:
-            self.map.set_waypoint_pose(self.waypoint_target)
-            self.cost_map.set_waypoint_pose(self.waypoint_target)
 
     def callback_bbox(self, msg: Polygon):
         if self.map is not None:
@@ -207,6 +234,9 @@ class platformNavigator(BasicNavigator):
             points = [[int(p.x), int(p.y)] for p in msg.points]
             self.map.set_bbox(points, ratio_x=2.0, ratio_y=2.0)
             self.info(str(points))
+
+    def start_cleaning(self,path:list):
+        print(path)
 
 class ProcessedMap():
     def __init__(self, map, ratio_x=1.0, ratio_y=1.0, robot_size_x=0.6, robot_size_y=0.4):
@@ -318,6 +348,19 @@ class ProcessedMap():
 
         return np.array([p1_viz, p2_viz, p3_viz, p4_viz], dtype=np.int32)
 
+    def get_map_bbox(self):
+        if hasattr(self,"bbox") and (self.bbox is not None):
+            p1 = self.bbox[0]
+            p2 = self.bbox[1]
+            size_x = p2[0] - p1[0]
+            size_y = p2[1] - p1[1]
+
+            map_result = self.np_map[p1[1]:p2[1],p1[0]:p2[0]].copy()
+            map_result = cv2.resize(map_result, [int(size_x * self.ratio_x_bbox), int(size_y * self.ratio_y_bbox)])
+            return map_result
+        else:
+            return None
+
     def origin_np(self):
         return int(-self.origin.position.x / self.resolution), int(self.size_y + self.origin.position.y / self.resolution)
 
@@ -371,34 +414,6 @@ class ProcessedMap():
 
         return np_map
 
-    def get_map_bbox(self):
-        if hasattr(self,"bbox") and (self.bbox is not None):
-            p1 = self.bbox[0]
-            p2 = self.bbox[1]
-            size_x = p2[0] - p1[0]
-            size_y = p2[1] - p1[1]
-
-            map_result = self.np_map[p1[1]:p2[1],p1[0]:p2[0]].copy()
-            map_result = cv2.resize(map_result, [int(size_x * self.ratio_x_bbox), int(size_y * self.ratio_y_bbox)])
-            return map_result
-        else:
-            return None
-
-    def calculate_cleaning_path(self, bbox_origin):
-
-        # try just once in each bbox
-        if not self.try_to_calculate_path:
-            self.try_to_calculate_path = True
-            try:
-                bbox_resize = cv2.resize(bbox_origin, [int(bbox_origin.shape[1] * self.ratio_x_bbox),
-                                                       int(bbox_origin.shape[0] * self.ratio_y_bbox)])
-                self.cleaning_path= find_cleaning_path(bbox_resize, self)
-            except Exception as e:
-                self.cleaning_path = None
-                print(e)
-
-        return self.cleaning_path
-
     def visualization_bbox(self):
         if hasattr(self,"bbox") and (self.bbox is not None):
             p1 = self.bbox[0]
@@ -426,6 +441,21 @@ class ProcessedMap():
             return map_result
         else:
             return None
+
+    def calculate_cleaning_path(self, bbox_origin):
+
+        # try just once in each bbox
+        if not self.try_to_calculate_path:
+            self.try_to_calculate_path = True
+            try:
+                bbox_resize = cv2.resize(bbox_origin, [int(bbox_origin.shape[1] * self.ratio_x_bbox),
+                                                       int(bbox_origin.shape[0] * self.ratio_y_bbox)])
+                self.cleaning_path= find_cleaning_path(bbox_resize, self)
+            except Exception as e:
+                self.cleaning_path = None
+                print(e)
+
+        return self.cleaning_path
 
 class rate_mine():
     def __init__(self, rate):
@@ -539,9 +569,15 @@ def main():
                 is_goal_first = False
             else:
                 navigator.cancelNav()
-            navigator.goToPose(navigator.waypoint_target)
-            navigator.waypoint_target = None
-            navigator.get_logger().info("Running...")
+
+            if(navigator.goToPose(navigator.waypoint_target)):
+                navigator.map.set_waypoint_pose(navigator.waypoint_target)
+                navigator.cost_map.set_waypoint_pose(navigator.waypoint_target)
+                navigator.waypoint_target = None
+            else:
+                navigator.waypoint_target = None
+                navigator.map.set_waypoint_pose(None)
+
 
         if(navigator.isVisualization_map):
             cv2.imshow(map_win_name,viz_map)
@@ -551,6 +587,7 @@ def main():
         bbox_area = map.visualization_bbox()
 
         if (bbox_area is not None) & (navigator.isVisualization_bbox):
+            navigator.set_controller(PlatformController.FollowPath)
             cv2.imshow(bbox_win_name,bbox_area)
             cv2.setMouseCallback(bbox_win_name,click_callback_bbox)
 
