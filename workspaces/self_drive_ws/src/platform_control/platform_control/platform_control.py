@@ -75,7 +75,7 @@ class PlatformControlNode(Node):
         self.pub_mode = self.create_publisher(std_msgs.msg.String, "/platform_mode", 10)
         self.pub_cmd_LPF = self.create_publisher(Twist, "/cmd_LPF", 10)
         self.sub_cmd = self.create_subscription(Twist, "/cmd_vel", self.callback_cmd, 10)
-        self.sub_cmd = self.create_subscription(std_msgs.msg.String, "/cmd_gui", self.callback_gui, 10)
+        self.sub_cmd_gui = self.create_subscription(std_msgs.msg.String, "/cmd_controller", self.callback_gui, 10)
         self.pub_a = self.create_publisher(Float32, '/a', 10)
         self.pub_b = self.create_publisher(Float32, '/b', 10)
         self.pub_c = self.create_publisher(Float32, '/c', 10)
@@ -226,7 +226,7 @@ class PlatformControlNode(Node):
             self.print_info(f"decode_error: {e}")
             return
 
-        if not(("VX" in dict_str) & ("VY" in dict_str) & ("Y" in dict_str)) | (dict_str is None) :
+        if  (dict_str is None) or not (("VX" in dict_str) & ("VY" in dict_str) & ("Y" in dict_str)):
             return
 
         yaw_encoder = dict_str['Y'] / 180.0 * math.pi
