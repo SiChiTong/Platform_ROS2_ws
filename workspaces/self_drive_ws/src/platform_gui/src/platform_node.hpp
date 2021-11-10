@@ -28,7 +28,8 @@ public:
   platform_node(std::string imgname);
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_image;
   rclcpp::Publisher<geometry_msgs::msg::Point32>::SharedPtr pub_waypoint;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_cmd_gui;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_cmd_controller;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_cmd_navigator;
   rclcpp::Publisher<geometry_msgs::msg::Polygon>::SharedPtr pub_bbox;
   void imgCallback(const sensor_msgs::msg::Image::SharedPtr msg) const;
   void set_callback(cvImgCallback callback);

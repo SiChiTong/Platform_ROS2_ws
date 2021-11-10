@@ -39,6 +39,10 @@ class PlatformController(Enum):
     FollowPath = "FollowPath"
     Cleaning = "Cleaning"
 
+class PlatformGoalChecker(Enum):
+    general_goal_checker = "general_goal_checker"
+    cleaning_goal_checker = "cleaning_goal_checker"
+
 def euler_from_quaternion(x, y, z, w):
     """
     Converts quaternion (w in last place) to euler roll, pitch, yaw
@@ -90,8 +94,8 @@ def create_pose_from_x_y_yaw(x, y, yaw, clock: rclpy.node.Clock):
     pose = PoseStamped()
     pose.header.frame_id = 'map'
     pose.header.stamp = clock.now().to_msg()
-    pose.pose.position.x = x
-    pose.pose.position.y = y
+    pose.pose.position.x = float(x)
+    pose.pose.position.y = float(y)
     q = quaternion_from_euler(0, 0, yaw)
     pose.pose.orientation.w = q[0]
     pose.pose.orientation.x = q[1]
@@ -134,12 +138,18 @@ class platformNavigator(BasicNavigator):
             liveliness=QoSLivelinessPolicy.AUTOMATIC,
             avoid_ros_namespace_conventions=False
         )
-        self.pub_controller = self.create_publisher(String, '/selected_controller', custom_profile)
 
+        self.pub_controller = self.create_publisher(String, '/selected_controller', custom_profile)
+        self.pub_goal_checker = self.create_publisher(String, '/selected_goal_checker', custom_profile)
         self.sub_waypoint = self.create_subscription(Point32, "/waypoint", self.callback_waypoint, custom_profile)
         self.sub_bbox = self.create_subscription(Polygon, "/selected_area", self.callback_bbox, custom_profile)
+        self.sub_cmd_gui = self.create_subscription(String, "/cmd_navigator", self.callback_gui, custom_profile)
+
         self.map = None
         self.cost_map = ProcessedMap(Costmap())
+
+        self.isCleaning = False
+
 
     def waitUntilNav2Active(self):
         """Block until the full navigation system is up and running."""
@@ -206,8 +216,16 @@ class platformNavigator(BasicNavigator):
     def set_controller(self, controller: PlatformController):
         result = String()
         result.data = controller.value
-        # self.info(f"Controller: {result.data}")
         self.pub_controller.publish(result)
+
+        if controller == PlatformController.FollowPath:
+            result = String()
+            result.data = PlatformGoalChecker.general_goal_checker.value
+            self.pub_goal_checker.publish(result)
+        elif controller == PlatformController.Cleaning:
+            result = String()
+            result.data = PlatformGoalChecker.cleaning_goal_checker.value
+            self.pub_goal_checker.publish(result)
 
     def update_map_data(self, str_robot=None, ratio_x=1.0, ratio_y=1.0):
         if(str_robot is None): str_robot=self.robot_base
@@ -230,13 +248,19 @@ class platformNavigator(BasicNavigator):
 
     def callback_bbox(self, msg: Polygon):
         if self.map is not None:
-            # points = [[x1,y1], [x2,y2]]
-            points = [[int(p.x), int(p.y)] for p in msg.points]
-            self.map.set_bbox(points, ratio_x=2.0, ratio_y=2.0)
-            self.info(str(points))
+            if len(msg.points) is 0:
+                self.map.set_bbox(None)
+                self.info("bbox is initialized!")
+            else:
+                points = [[int(p.x), int(p.y)] for p in msg.points]
+                self.map.set_bbox(points, ratio_x=2.0, ratio_y=2.0)
+                self.info(str(points))
 
-    def start_cleaning(self,path:list):
-        print(path)
+    def callback_gui(self, msg: String):
+        self.info(f"gui: {msg.data}")
+
+    def start_cleaning(self, all_path: list):
+        print(all_path)
 
 class ProcessedMap():
     def __init__(self, map, ratio_x=1.0, ratio_y=1.0, robot_size_x=0.6, robot_size_y=0.4):
@@ -399,11 +423,12 @@ class ProcessedMap():
         robot_x, robot_y, robot_yaw = self.get_robot_base()
         points_robot_viz = self.get_robot_rect(robot_x, robot_y, robot_yaw)
 
+        np_map = cv2.circle(np_map, [origin_x_np, origin_y_np], 4, color=[0, 0, 255], thickness=-1)
+
         if hasattr(self,"waypoint") and (self.waypoint is not None):
             w_x, w_y = self.position_to_np(self.waypoint.position.x, self.waypoint.position.y)
             np_map = cv2.circle(np_map, [w_x, w_y], 8, [255, 0, 0], thickness=-1)
 
-        np_map = cv2.circle(np_map, [origin_x_np, origin_y_np], 8, color=[0, 0, 255], thickness=-1)
         np_map = cv2.fillPoly(np_map, [points_robot_viz], color=[0, 255, 0])
         np_map = cv2.resize(np_map, [int(self.size_x * self.ratio_x), int(self.size_y * self.ratio_y)])
 
@@ -414,7 +439,7 @@ class ProcessedMap():
 
         return np_map
 
-    def visualization_bbox(self):
+    def visualization_bbox(self,visualize_progress=False):
         if hasattr(self,"bbox") and (self.bbox is not None):
             p1 = self.bbox[0]
             p2 = self.bbox[1]
@@ -433,7 +458,7 @@ class ProcessedMap():
             map_result = cv2.fillPoly(map_result, [points_robot_viz], color=[0, 255, 0])
             map_result = cv2.resize(map_result, [int(size_x * self.ratio_x_bbox), int(size_y * self.ratio_y_bbox)])
 
-            cleaning_path = self.calculate_cleaning_path(map_origin)
+            cleaning_path = self.calculate_cleaning_path(map_origin, visualize_progress=visualize_progress)
 
             if cleaning_path is not None:
                 map_result = visualize_path(map_result,self.cleaning_path)
@@ -442,7 +467,7 @@ class ProcessedMap():
         else:
             return None
 
-    def calculate_cleaning_path(self, bbox_origin):
+    def calculate_cleaning_path(self, bbox_origin, visualize_progress=False):
 
         # try just once in each bbox
         if not self.try_to_calculate_path:
@@ -450,12 +475,36 @@ class ProcessedMap():
             try:
                 bbox_resize = cv2.resize(bbox_origin, [int(bbox_origin.shape[1] * self.ratio_x_bbox),
                                                        int(bbox_origin.shape[0] * self.ratio_y_bbox)])
-                self.cleaning_path= find_cleaning_path(bbox_resize, self)
+                self.cleaning_path= find_cleaning_path(bbox_resize, self, visualize=visualize_progress)
             except Exception as e:
                 self.cleaning_path = None
                 print(e)
 
         return self.cleaning_path
+
+    def get_cleaning_path(self, clock: rclpy.node.Clock):
+        if hasattr(self,"cleaning_path") and (self.cleaning_path is not None) and \
+           hasattr(self,"bbox") and (self.bbox is not None):
+            try:
+                all_path_pose = []
+
+                for path in self.cleaning_path:
+                    path_pose = []
+                    vec_x = path[1][0] - path[0][0]
+                    vec_y = path[1][1] - path[0][1]
+                    yaw = - math.atan2(vec_y, vec_x)
+                    for x, y in path:
+                        px, py = self.np_to_position_bbox(x, y)
+                        path_pose.append(create_pose_from_x_y_yaw(px, py, yaw, clock))
+                    all_path_pose.append(path_pose)
+
+                return all_path_pose
+
+            except Exception as e:
+                print(e)
+                return None
+        else:
+            return None
 
 class rate_mine():
     def __init__(self, rate):
@@ -521,6 +570,13 @@ class Rectangle:
         pts = [pt0, pt1, pt2, pt3]
         return pts
 
+def destroyWindow_mine(win_name):
+    try:
+        cv2.destroyWindow(win_name)
+    except Exception as e:
+        if not e.err == "NULL guiReceiver (please create a window)":
+            print(e)
+
 def main():
     rclpy.init()
     navigator = platformNavigator(init_x=0.0, init_y=0.0, init_yaw=0.0)
@@ -555,16 +611,17 @@ def main():
     map_win_name = "map"
     bbox_win_name = "bbox"
 
+    isGoalProgress = False
+
     while rclpy.ok():
 
-        # TODO: CPP 구현
-        # navigator.update_map_data(str_robot="robot_base")
         navigator.update_map_data()
         viz_map = navigator.map.visualization()
         msg_map = cvbridge.cv2_to_imgmsg(viz_map)
         navigator.pub_map_img.publish(msg_map)
 
         if navigator.waypoint_target != None:
+
             if is_goal_first:
                 is_goal_first = False
             else:
@@ -572,27 +629,47 @@ def main():
 
             if(navigator.goToPose(navigator.waypoint_target)):
                 navigator.map.set_waypoint_pose(navigator.waypoint_target)
-                navigator.cost_map.set_waypoint_pose(navigator.waypoint_target)
-                navigator.waypoint_target = None
+                isGoalProgress = True
             else:
-                navigator.waypoint_target = None
                 navigator.map.set_waypoint_pose(None)
+                isGoalProgress = False
 
+            navigator.waypoint_target = None
+
+        if isGoalProgress:
+            if navigator.isNavComplete():
+                result: NavigationResult = navigator.getResult()
+
+                if(result == NavigationResult.SUCCEEDED):
+                    navigator.info("Goal Reached!")
+                if(result == NavigationResult.CANCELED):
+                    navigator.info("Goal Canceled!")
+                if(result == NavigationResult.FAILED):
+                    navigator.info("Goal Failed!")
+
+                isGoalProgress = False
+            # else:
+            #     navigator.info("In progress...")
 
         if(navigator.isVisualization_map):
             cv2.imshow(map_win_name,viz_map)
             cv2.setMouseCallback(map_win_name,click_callback_map)
 
-        map: ProcessedMap = navigator.map
-        bbox_area = map.visualization_bbox()
-
-        if (bbox_area is not None) & (navigator.isVisualization_bbox):
-            navigator.set_controller(PlatformController.FollowPath)
+        bbox_area = navigator.map.visualization_bbox(visualize_progress=True)
+        if(navigator.isVisualization_bbox) & (bbox_area is not None):
+            navigator.set_controller(PlatformController.Cleaning)
             cv2.imshow(bbox_win_name,bbox_area)
             cv2.setMouseCallback(bbox_win_name,click_callback_bbox)
+        elif (bbox_area is None):
+            try:
+                destroyWindow_mine(bbox_win_name)
+            except Exception as e:
+                if not e.err == "NULL guiReceiver (please create a window)":
+                    print(e)
+
+        navigator.map.get_cleaning_path(navigator.get_clock())
 
         k = cv2.waitKey(1) & 0xFF
-
         rate.sleep(navigator)
 
         if k == 27:

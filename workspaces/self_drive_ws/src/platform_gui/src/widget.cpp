@@ -510,9 +510,19 @@ void Widget::on_lbl_reset_area_clicked()
 {
   m_selectedArea_LU = QPoint();
   m_selectedArea_RD = QPoint();
+
+  node_ptr->pub_bbox->publish(geometry_msgs::msg::Polygon());
 }
 
 void Widget::on_lbl_start_clean_clicked()
+{
+  std_msgs::msg::String msg;
+  msg.data = "Cleaning:Start";
+  this->node_ptr->pub_cmd_navigator->publish(msg);
+}
+
+
+void Widget::on_lbl_set_bbox_clicked()
 {
   auto points = geometry_msgs::msg::Polygon();
 
@@ -547,6 +557,7 @@ void Widget::on_lbl_start_clean_clicked()
   m_selectedArea_LU = QPoint();
   m_selectedArea_RD = QPoint();
 }
+
 
 #pragma endregion}
 
@@ -600,28 +611,43 @@ void Widget::on_brush_on_clicked()
 {
   std_msgs::msg::String msg;
   msg.data = "<Br:1;>";
-  this->node_ptr->pub_cmd_gui->publish(msg);
+  this->node_ptr->pub_cmd_controller->publish(msg);
 }
 
 void Widget::on_Brush_OFF_clicked()
 {
   std_msgs::msg::String msg;
   msg.data = "<Br:0;>";
-  this->node_ptr->pub_cmd_gui->publish(msg);
+  this->node_ptr->pub_cmd_controller->publish(msg);
 }
 
 void Widget::on_pump_on_clicked()
 {
   std_msgs::msg::String msg;
   msg.data = "<W:1;>";
-  this->node_ptr->pub_cmd_gui->publish(msg);
+  this->node_ptr->pub_cmd_controller->publish(msg);
 }
 
 void Widget::on_Pump_OFF_clicked()
 {
   std_msgs::msg::String msg;
   msg.data = "<W:0;>";
-  this->node_ptr->pub_cmd_gui->publish(msg);
+  this->node_ptr->pub_cmd_controller->publish(msg);
+}
+
+
+void Widget::on_vacumm_on_clicked()
+{
+  std_msgs::msg::String msg;
+  msg.data = "<V:1;>";
+  this->node_ptr->pub_cmd_controller->publish(msg);
+}
+
+void Widget::on_vacumm_OFF_clicked()
+{
+  std_msgs::msg::String msg;
+  msg.data = "<V:0;>";
+  this->node_ptr->pub_cmd_controller->publish(msg);
 }
 
 void Widget::on_Front_clicked()
@@ -672,4 +698,5 @@ void Widget::on_Stop_clicked()
 #pragma endregion}
 
 // -------------------- ROS2 ------------------------- //
+
 

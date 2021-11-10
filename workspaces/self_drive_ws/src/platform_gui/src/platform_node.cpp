@@ -16,8 +16,10 @@ platform_node::platform_node(std::string imgname) : rclcpp::Node ("platform_gui"
 
   this->pub_waypoint = this->create_publisher<geometry_msgs::msg::Point32>("waypoint", qos_custom);
   this->pub_bbox = this->create_publisher<geometry_msgs::msg::Polygon>("selected_area", qos_custom);
+  this->pub_cmd_navigator = this->create_publisher<std_msgs::msg::String>("cmd_navigator", qos_custom);
 
-  this->pub_cmd_gui = this->create_publisher<std_msgs::msg::String>("cmd_gui", 5);
+  this->pub_cmd_controller = this->create_publisher<std_msgs::msg::String>("cmd_controller", 5);
+
 
   RCLCPP_INFO(this->get_logger(),"node initalized!");
 }

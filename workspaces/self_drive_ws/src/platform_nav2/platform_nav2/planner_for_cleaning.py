@@ -65,7 +65,7 @@ def remove_too_small_cells(quad_cells: list, robot_w, robot_h):
         if isSmall:
             quad_cells.remove(cell)
 
-def find_cleaning_path(bbox_area, map, width=0, safewidth=0):
+def find_cleaning_path(bbox_area, map, visualize=False):
     if (bbox_area is not None):
 
         bbox_area_origin = bbox_area.copy()
@@ -80,15 +80,13 @@ def find_cleaning_path(bbox_area, map, width=0, safewidth=0):
         bbox_area_viz = cv2.copyMakeBorder(bbox_area_viz, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=[255])
 
         approxes, bbox_area_th = generate_polygon_countour_np(bbox_area_viz)
-        path = find_path(map, approxes, visualize=False)
+        path = find_path(map, approxes, visualize=visualize)
 
-        # bbox_area_viz_path = visualize_path(bbox_area_origin, path)
-
-        # if visualize:
-        #     bbox_area_viz_morp = cv2.cvtColor(bbox_area_th.copy(), cv2.COLOR_GRAY2RGB)
-        #     bbox_area_viz_cont = visualize_contours(bbox_area_origin, approxes)
-        #     bbox_area_result = np.concatenate((bbox_area_viz_morp, bbox_area_viz_cont), axis=0)
-        #     cv2.imshow("asd",bbox_area_result)
+        if visualize:
+            bbox_area_viz_morp = cv2.cvtColor(bbox_area_th.copy(), cv2.COLOR_GRAY2RGB)
+            bbox_area_viz_cont = visualize_contours(bbox_area_origin, approxes)
+            bbox_area_result = np.concatenate((bbox_area_viz_morp, bbox_area_viz_cont), axis=0)
+            cv2.imshow("asd",bbox_area_result)
 
         return path
 

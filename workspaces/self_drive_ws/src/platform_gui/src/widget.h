@@ -133,6 +133,12 @@ private slots:
 
     void on_lbl_start_clean_clicked();
 
+    void on_lbl_set_bbox_clicked();
+
+    void on_vacumm_on_clicked();
+
+    void on_vacumm_OFF_clicked();
+
 private:
     Ui::Widget *ui;            
     bool target_available;
