@@ -1,8 +1,8 @@
-﻿################################################################################
+################################################################################
 # Set minimum required version of cmake, project name and compile options
 ################################################################################
 cmake_minimum_required(VERSION 3.5)
-project(robotis_manipulator)
+project(cleaner_arm_control)
 
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 14)
@@ -15,9 +15,8 @@ endif()
 ################################################################################
 # Find and load build settings from external packages
 ################################################################################
-find_package(Eigen3 REQUIRED)
 find_package(ament_cmake REQUIRED)
-find_package(cmake_modules REQUIRED)
+find_package(dynamixel_sdk REQUIRED)
 find_package(rclcpp REQUIRED)
 
 ################################################################################
@@ -27,43 +26,33 @@ find_package(rclcpp REQUIRED)
 ################################################################################
 # Build
 ################################################################################
+
 include_directories(
   include
-  ${EIGEN3_INCLUDE_DIRS}
+  ${dynamixel_sdk_INCLUDE_DIRS}/dynamixel_sdk
 )
 
-set(dependencies_lib
-  "EIGEN3"
-  "cmake_modules"
-  "rclcpp"
-)
+set(dependencies
+  dynamixel_sdk
+  rclcpp
+  )
 
-set(LIB_NAME "robotis_manipulator")
+add_executable(clear_multi_turn src/clear_multi_turn.cpp)
 
-add_library(${LIB_NAME} SHARED
-  src/robotis_manipulator/robotis_manipulator.cpp
-  src/robotis_manipulator/robotis_manipulator_common.cpp
-  src/robotis_manipulator/robotis_manipulator_log.cpp
-  src/robotis_manipulator/robotis_manipulator_trajectory_generator.cpp
-  src/robotis_manipulator/robotis_manipulator_manager.cpp
-  src/robotis_manipulator/robotis_manipulator_math.cpp
-)
+ament_target_dependencies(clear_multi_turn
+  ${dependencies}
+  )
 
-ament_target_dependencies(${LIB_NAME} ${dependencies_lib})
-target_link_libraries(${LIB_NAME} ${Eigen3_LIBRARIES})
+target_include_directories(clear_multi_turn PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
 
 ################################################################################
 # Install
 ################################################################################
-install(TARGETS ${LIB_NAME}
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin/${PROJECT_NAME}
-)
 
-install(DIRECTORY include/
-  DESTINATION include/
-)
+install(TARGETS clear_multi_turn
+  DESTINATION lib/${PROJECT_NAME})
 
 ################################################################################
 # Test
@@ -72,9 +61,19 @@ install(DIRECTORY include/
 ################################################################################
 # Macro for ament package
 ################################################################################
+
 ament_export_include_directories(include)
-ament_export_dependencies(rclcpp)
-ament_export_dependencies(cmake_modules)
-ament_export_dependencies(Eigen3)
-ament_export_libraries(${LIB_NAME})
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  # the following line skips the linter which checks for copyrights
+  # uncomment the line when a copyright and license is not present in all source files
+  #set(ament_cmake_copyright_FOUND TRUE)
+  # the following line skips cpplint (only works in a git repo)
+  # uncomment the line when this package is not in a git repo
+  #set(ament_cmake_cpplint_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
 ament_package()
+
