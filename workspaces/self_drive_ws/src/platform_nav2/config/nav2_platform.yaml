@@ -58,6 +58,8 @@ bt_navigator:
     enable_groot_monitoring: True
     groot_zmq_publisher_port: 1666
     groot_zmq_server_port: 1667
+    default_nav_to_pose_bt_xml: ""
+    default_nav_through_poses_bt_xml: ""
     # 'default_nav_through_poses_bt_xml' and 'default_nav_to_pose_bt_xml' are use defaults:
     # nav2_bt_navigator/navigate_to_pose_w_replanning_and_recovery.xml
     # nav2_bt_navigator/navigate_through_poses_w_replanning_and_recovery.xml
@@ -127,9 +129,9 @@ controller_server:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: True
       min_vel_x: -0.15
-      min_vel_y: 0.15
+      min_vel_y: -0.15
       max_vel_x: 0.15
-      max_vel_y: -0.15
+      max_vel_y: 0.15
       max_vel_theta: 0.2
       min_speed_xy: -0.3
       max_speed_xy: 0.3
