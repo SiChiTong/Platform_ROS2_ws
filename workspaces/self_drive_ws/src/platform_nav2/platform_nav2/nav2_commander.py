@@ -2,7 +2,6 @@
 
 from datetime import datetime
 
-import navigation as navigation
 import time
 import yaml
 import os
@@ -250,7 +249,7 @@ class platformNavigator(BasicNavigator):
         if self.check_map():
             if self.isCleaning: self.stop_cleaning()
 
-            if len(msg.points) is 0:
+            if len(msg.points) == 0:
                 self.map.set_bbox(None)
                 self.info("bbox is initialized!")
             else:
