@@ -93,6 +93,6 @@ def generate_launch_description():
     # Add the commands to the launch description
     ld.add_action(nav2_cmd)
     ld.add_action(gui_cmd)
-    # ld.add_action(rviz_node)
+    ld.add_action(rviz_node)
 
     return ld
