@@ -14,9 +14,9 @@ platform_node::platform_node(std::string imgname) : rclcpp::Node ("platform_gui"
 
   this->sub_image = this->create_subscription<sensor_msgs::msg::Image>(imgname, rclcpp::ClockQoS(), func_);
 
-  this->pub_waypoint = this->create_publisher<geometry_msgs::msg::Point32>("waypoint", qos_custom);
-  this->pub_bbox = this->create_publisher<geometry_msgs::msg::Polygon>("selected_area", qos_custom);
-  this->pub_cmd_navigator = this->create_publisher<std_msgs::msg::String>("cmd_navigator", qos_custom);
+  this->pub_waypoint = this->create_publisher<geometry_msgs::msg::Point32>("waypoint", 5);
+  this->pub_bbox = this->create_publisher<geometry_msgs::msg::Polygon>("selected_area", 5);
+  this->pub_cmd_navigator = this->create_publisher<std_msgs::msg::String>("cmd_navigator", 5);
 
   this->pub_cmd_controller = this->create_publisher<std_msgs::msg::String>("cmd_controller", 5);
 

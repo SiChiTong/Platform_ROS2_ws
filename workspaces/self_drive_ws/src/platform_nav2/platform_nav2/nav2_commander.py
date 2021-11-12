@@ -1,6 +1,8 @@
 #! /usr/bin/env python3
 
 from datetime import datetime
+
+import navigation as navigation
 import time
 import yaml
 import os
@@ -25,7 +27,9 @@ from enum import Enum
 from action_msgs.msg import GoalStatus
 
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSHistoryPolicy, \
-                      QoSLivelinessPolicy, QoSReliabilityPolicy, QoSPresetProfiles
+                      QoSLivelinessPolicy, QoSReliabilityPolicy
+
+from rclpy.duration import Duration
 
 try:
     from planner_for_cleaning import *
@@ -141,15 +145,18 @@ class platformNavigator(BasicNavigator):
 
         self.pub_controller = self.create_publisher(String, '/selected_controller', custom_profile)
         self.pub_goal_checker = self.create_publisher(String, '/selected_goal_checker', custom_profile)
-        self.sub_waypoint = self.create_subscription(Point32, "/waypoint", self.callback_waypoint, custom_profile)
-        self.sub_bbox = self.create_subscription(Polygon, "/selected_area", self.callback_bbox, custom_profile)
-        self.sub_cmd_gui = self.create_subscription(String, "/cmd_navigator", self.callback_gui, custom_profile)
+
+        self.sub_waypoint = self.create_subscription(Point32, "/waypoint", self.callback_waypoint, 5)
+        self.sub_bbox = self.create_subscription(Polygon, "/selected_area", self.callback_bbox, 5)
+        self.sub_cmd_gui = self.create_subscription(String, "/cmd_navigator", self.callback_gui, 5)
 
         self.map = None
         self.cost_map = ProcessedMap(Costmap())
 
         self.isCleaning = False
-
+        self.flag_stop_cleaning = False
+        self.current_progress_path = -1
+        self.current_progress_pose = -1
 
     def waitUntilNav2Active(self):
         """Block until the full navigation system is up and running."""
@@ -164,7 +171,7 @@ class platformNavigator(BasicNavigator):
         if not self.result_future:
             # task was cancelled or completed
             return True
-        rclpy.spin_until_future_complete(self, self.result_future, timeout_sec=0.10)
+        rclpy.spin_until_future_complete(self, self.result_future, timeout_sec=0.01)
         if self.result_future.result():
             self.status = self.result_future.result().status
             if self.status != GoalStatus.STATUS_SUCCEEDED:
@@ -176,13 +183,6 @@ class platformNavigator(BasicNavigator):
 
         self.debug('Goal succeeded!')
         return True
-
-    # def get_map_ros2(self):
-    #     req = GetMap.Request()
-    #     self.result_future_map = self.get_maps_srv.call_async(req)
-    #     rclpy.spin_until_future_complete(self, self.result_future_map)
-    #     map = self.result_future_map.result().map
-    #     return map
 
     def get_map_ros2(self):
         req_param = GetParameters.Request()
@@ -247,7 +247,9 @@ class platformNavigator(BasicNavigator):
         self.waypoint_target = waypoint_pose
 
     def callback_bbox(self, msg: Polygon):
-        if self.map is not None:
+        if self.check_map():
+            if self.isCleaning: self.stop_cleaning()
+
             if len(msg.points) is 0:
                 self.map.set_bbox(None)
                 self.info("bbox is initialized!")
@@ -257,10 +259,76 @@ class platformNavigator(BasicNavigator):
                 self.info(str(points))
 
     def callback_gui(self, msg: String):
-        self.info(f"gui: {msg.data}")
+        s = msg.data.split(":")
+        category = s[0]
+        cmd = s[1]
+        if category == "Cleaning":
+            if cmd == "Start":
+                self.stop_cleaning()
+                if self.check_map() and self.map.check_cleaning_path():
+                    self.isCleaning = True
+                    self.info("get cleaning command from gui")
+                else:
+                    self.info("get cleaning command from gui... but cleaning path is not calculated!")
+                    return
+            elif cmd == "Stop":
+                self.stop_cleaning()
 
-    def start_cleaning(self, all_path: list):
-        print(all_path)
+    def start_cleaning(self):
+        if self.isCleaning:
+            if(self.current_progress_path == -1):
+                self.cancelNav()
+                self.cleaning_poses = self.map.get_cleaning_path(self.get_clock())
+                self.current_progress_path = 0
+                self.current_progress_pose = 0
+                self.goToPose(self.cleaning_poses[0][0])
+
+            else:
+                print("cleaning command is already progressed.")
+        else:
+            print("cleaning command is not arrived.")
+
+    def progress_cleaning(self):
+        if self.current_progress_path == -1:
+            self.info("cleaning process is not started!")
+            return False
+
+        if self.isCleaning and self.check_progress_cleaning():
+            progressed_path: list = self.cleaning_poses[self.current_progress_path]
+
+            if (self.current_progress_path >= (len(self.cleaning_poses) - 1)) and \
+               (self.current_progress_pose >= (len(progressed_path) - 1)):
+                self.info("progress all path!")
+                self.stop_cleaning()
+                return True
+
+            else:
+                progressed_path: list = self.cleaning_poses[self.current_progress_path]
+                if self.current_progress_pose < (len(progressed_path) - 1):
+                    self.current_progress_pose += 1
+                    self.set_controller(PlatformController.Cleaning)
+                    self.goToPose(progressed_path[self.current_progress_pose])
+                else:
+                    self.current_progress_path += 1
+
+        return False
+
+    def stop_cleaning(self):
+        if self.isCleaning:
+            self.current_progress_path = -1
+            self.cleaning_poses = None
+            self.isCleaning = False
+            self.flag_stop_cleaning = True
+            self.set_controller(PlatformController.FollowPath)
+        else:
+            print("cleaning process is already stopped.")
+
+    def check_progress_cleaning(self):
+        return hasattr(self, "cleaning_poses") and (self.cleaning_poses is not None) and \
+               (self.current_progress_path != -1)
+
+    def check_map(self):
+        return hasattr(self, 'map') and (self.map is not None)
 
 class ProcessedMap():
     def __init__(self, map, ratio_x=1.0, ratio_y=1.0, robot_size_x=0.6, robot_size_y=0.4):
@@ -373,7 +441,7 @@ class ProcessedMap():
         return np.array([p1_viz, p2_viz, p3_viz, p4_viz], dtype=np.int32)
 
     def get_map_bbox(self):
-        if hasattr(self,"bbox") and (self.bbox is not None):
+        if self.check_bbox():
             p1 = self.bbox[0]
             p2 = self.bbox[1]
             size_x = p2[0] - p1[0]
@@ -432,7 +500,7 @@ class ProcessedMap():
         np_map = cv2.fillPoly(np_map, [points_robot_viz], color=[0, 255, 0])
         np_map = cv2.resize(np_map, [int(self.size_x * self.ratio_x), int(self.size_y * self.ratio_y)])
 
-        if hasattr(self,"bbox") and (self.bbox is not None):
+        if self.check_bbox():
             p1 = self.bbox[0]
             p2 = self.bbox[1]
             np_map = cv2.rectangle(np_map, p1, p2,color=[255, 0, 0],thickness=2)
@@ -440,7 +508,7 @@ class ProcessedMap():
         return np_map
 
     def visualization_bbox(self,visualize_progress=False):
-        if hasattr(self,"bbox") and (self.bbox is not None):
+        if self.check_bbox():
             p1 = self.bbox[0]
             p2 = self.bbox[1]
             size_x = p2[0] - p1[0]
@@ -461,7 +529,7 @@ class ProcessedMap():
             cleaning_path = self.calculate_cleaning_path(map_origin, visualize_progress=visualize_progress)
 
             if cleaning_path is not None:
-                map_result = visualize_path(map_result,self.cleaning_path)
+                map_result = visualize_path(map_result,cleaning_path)
 
             return map_result
         else:
@@ -483,8 +551,7 @@ class ProcessedMap():
         return self.cleaning_path
 
     def get_cleaning_path(self, clock: rclpy.node.Clock):
-        if hasattr(self,"cleaning_path") and (self.cleaning_path is not None) and \
-           hasattr(self,"bbox") and (self.bbox is not None):
+        if self.check_cleaning_path():
             try:
                 all_path_pose = []
 
@@ -505,6 +572,13 @@ class ProcessedMap():
                 return None
         else:
             return None
+
+    def check_cleaning_path(self):
+        return hasattr(self,"cleaning_path") and (self.cleaning_path is not None) and \
+               self.check_bbox()
+
+    def check_bbox(self):
+        return hasattr(self,"bbox") and (self.bbox is not None)
 
 class rate_mine():
     def __init__(self, rate):
@@ -577,6 +651,27 @@ def destroyWindow_mine(win_name):
         if not e.err == "NULL guiReceiver (please create a window)":
             print(e)
 
+def print_progress_msg(navigator: platformNavigator, feedback):
+    # Go to Cleaning Path...
+    if navigator.isCleaning and navigator.check_progress_cleaning():
+        current_pose_index = navigator.current_progress_pose + 1
+        all_pose_len = len(navigator.cleaning_poses[navigator.current_progress_path])
+        current_cell = navigator.current_progress_path + 1
+        all_cells = len(navigator.cleaning_poses)
+        navigator.info(f'waypoint: {current_pose_index} / {all_pose_len} | cell: {current_cell} / {all_cells}')
+
+    # Go to Waypoint...
+    elif not navigator.isCleaning:
+        navigator.info('Estimated time of arrival: ' + '{0:.2f}'.format(
+                        Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9)
+                          + ' seconds.')
+
+def check_stop_cleaning(navigator: platformNavigator):
+    if navigator.flag_stop_cleaning:
+        print("stop cleaning!")
+        navigator.cancelNav()
+        navigator.flag_stop_cleaning = False
+
 def main():
     rclpy.init()
     navigator = platformNavigator(init_x=0.0, init_y=0.0, init_yaw=0.0)
@@ -612,15 +707,40 @@ def main():
     bbox_win_name = "bbox"
 
     isGoalProgress = False
+    i = 0
 
     while rclpy.ok():
+
+        check_stop_cleaning(navigator)
 
         navigator.update_map_data()
         viz_map = navigator.map.visualization()
         msg_map = cvbridge.cv2_to_imgmsg(viz_map)
         navigator.pub_map_img.publish(msg_map)
 
+        if(navigator.isVisualization_map):
+            cv2.imshow(map_win_name,viz_map)
+            cv2.setMouseCallback(map_win_name,click_callback_map)
+
+        bbox_area = navigator.map.visualization_bbox(visualize_progress=False)
+
+        if(navigator.isVisualization_bbox) & (bbox_area is not None):
+            cv2.imshow(bbox_win_name,bbox_area)
+            cv2.setMouseCallback(bbox_win_name,click_callback_bbox)
+
+        elif (bbox_area is None):
+            try:
+                destroyWindow_mine(bbox_win_name)
+            except Exception as e:
+                if not e.err == "NULL guiReceiver (please create a window)":
+                    print(e)
+
+        # Waypoint
         if navigator.waypoint_target != None:
+            # if in cleaning process, stop cleaning.
+            if navigator.check_progress_cleaning():
+                navigator.stop_cleaning()
+                print("Waypoint: stop cleaning")
 
             if is_goal_first:
                 is_goal_first = False
@@ -629,6 +749,7 @@ def main():
 
             if(navigator.goToPose(navigator.waypoint_target)):
                 navigator.map.set_waypoint_pose(navigator.waypoint_target)
+                print("Waypoint: stop cleaning")
                 isGoalProgress = True
             else:
                 navigator.map.set_waypoint_pose(None)
@@ -636,38 +757,44 @@ def main():
 
             navigator.waypoint_target = None
 
+        # Cleaning
+        elif(navigator.isCleaning) and (navigator.map.check_cleaning_path()) and (not navigator.check_progress_cleaning()):
+            navigator.start_cleaning()
+            isGoalProgress = True
+
         if isGoalProgress:
-            if navigator.isNavComplete():
+            if not navigator.isNavComplete():
+                i += 1
+                if i % 10 == 0:
+                    feedback = navigator.getFeedback()
+                    print_progress_msg(navigator, feedback)
+
+            # Navigation Process Done.
+            else:
                 result: NavigationResult = navigator.getResult()
 
-                if(result == NavigationResult.SUCCEEDED):
-                    navigator.info("Goal Reached!")
-                if(result == NavigationResult.CANCELED):
-                    navigator.info("Goal Canceled!")
-                if(result == NavigationResult.FAILED):
-                    navigator.info("Goal Failed!")
+                # Waypoint
+                if not navigator.isCleaning:
+                    if(result == NavigationResult.SUCCEEDED):
+                        navigator.info("Goal Reached!")
+                    if(result == NavigationResult.CANCELED):
+                        navigator.info("Goal Canceled!")
+                    if(result == NavigationResult.FAILED):
+                        navigator.info("Goal Failed!")
+                    isGoalProgress = False
 
-                isGoalProgress = False
-            # else:
-            #     navigator.info("In progress...")
+                # Cleaning...
+                else:
+                    if(result == NavigationResult.SUCCEEDED):
+                        if navigator.progress_cleaning():
+                            isGoalProgress = False
 
-        if(navigator.isVisualization_map):
-            cv2.imshow(map_win_name,viz_map)
-            cv2.setMouseCallback(map_win_name,click_callback_map)
-
-        bbox_area = navigator.map.visualization_bbox(visualize_progress=True)
-        if(navigator.isVisualization_bbox) & (bbox_area is not None):
-            navigator.set_controller(PlatformController.Cleaning)
-            cv2.imshow(bbox_win_name,bbox_area)
-            cv2.setMouseCallback(bbox_win_name,click_callback_bbox)
-        elif (bbox_area is None):
-            try:
-                destroyWindow_mine(bbox_win_name)
-            except Exception as e:
-                if not e.err == "NULL guiReceiver (please create a window)":
-                    print(e)
-
-        navigator.map.get_cleaning_path(navigator.get_clock())
+                    if(result == NavigationResult.CANCELED):
+                        navigator.info("Cleaning Canceled!")
+                        navigator.stop_cleaning()
+                    if(result == NavigationResult.FAILED):
+                        navigator.info("Cleaning Failed!")
+                        navigator.stop_cleaning()
 
         k = cv2.waitKey(1) & 0xFF
         rate.sleep(navigator)

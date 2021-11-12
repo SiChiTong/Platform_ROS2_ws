@@ -62,6 +62,6 @@ def generate_launch_description():
 
     # Add the commands to the launch description
     ld.add_action(gui_cmd)
-    # ld.add_action(commander_cmd)
+    ld.add_action(commander_cmd)
 
     return ld

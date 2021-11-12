@@ -170,7 +170,8 @@ def find_path(map, approxes, visualize=False):
         path_x = [pnt.x for pnt in i.inside_path]
         path_y = [pnt.y for pnt in i.inside_path]
         path_node = [[int(pnt.x), int(pnt.y)] for pnt in i.inside_path]
-        path.append(path_node)
+        if len(path_node) != 0:
+            path.append(path_node)
 
         plt.plot(path_x, path_y)
         for pnt in i.inside_path:

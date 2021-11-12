@@ -40,7 +40,7 @@ def generate_launch_description():
     turtlebot_launch_file_dir = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
     pkg_gazebo_ros = get_package_share_directory('gazebo_ros')
 
-    map_file = "map.yaml"
+    map_file = "map_house.yaml"
     map_dir = LaunchConfiguration('map_file',
                                   default=os.path.join(package_prefix, 'map', map_file))
 

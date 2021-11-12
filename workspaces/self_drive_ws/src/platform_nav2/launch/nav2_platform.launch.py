@@ -34,7 +34,7 @@ package_prefix = get_package_share_directory(package_name)
 platform_control_prefix = get_package_share_directory('platform_control')
 
 map_file = "map.yaml"
-nav_to_pose_bt_xml_file = "nav_test.xml"
+nav_to_pose_bt_xml_file = "nav_platform.xml"
 param_file_name = 'nav2_platform.yaml'
 # nav_through_poses_bt_xml_file = "clean_test.xml"
 robot_name = "robot_base"
