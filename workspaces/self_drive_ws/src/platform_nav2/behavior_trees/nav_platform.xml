@@ -9,9 +9,9 @@
         <RecoveryNode number_of_retries="6" name="NavigateRecovery">
             <PipelineSequence name="NavigateWithReplanning">
                 <RateController hz="3.0">
-                    <RecoveryNode number_of_retries="2" name="ComputePathToPose">
+                    <RecoveryNode number_of_retries="1" name="ComputePathToPose">
                         <ReactiveSequence>
-                            <PlannerSelector selected_planner="{selected_planner}" default_planner="GridBased" topic_name="selected_planner"/>
+                            <PlannerSelector selected_planner="{selected_planner}" default_planner="FollowPath" topic_name="selected_planner"/>
                             <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}"/>
                         </ReactiveSequence>
                         <ReactiveFallback name="ComputePathToPoseRecoveryFallback">
@@ -20,7 +20,7 @@
                         </ReactiveFallback>
                     </RecoveryNode>
                 </RateController>
-                <RecoveryNode number_of_retries="2" name="FollowPath">
+                <RecoveryNode number_of_retries="1" name="FollowPath">
                     <ReactiveSequence>
                         <ControllerSelector selected_controller="{selected_controller}" default_controller="FollowPath" topic_name="selected_controller"/>
                         <GoalCheckerSelector selected_goal_checker="{selected_goal_checker}" default_goal_checker="general_goal_checker" topic_name="selected_goal_checker"/>

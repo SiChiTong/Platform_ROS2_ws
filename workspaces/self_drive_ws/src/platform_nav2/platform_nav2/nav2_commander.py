@@ -146,6 +146,7 @@ class platformNavigator(BasicNavigator):
         )
 
         self.pub_controller = self.create_publisher(String, '/selected_controller', custom_profile)
+        self.pub_planner = self.create_publisher(String, '/selected_planner', custom_profile)
         self.pub_goal_checker = self.create_publisher(String, '/selected_goal_checker', custom_profile)
 
         self.sub_waypoint = self.create_subscription(Point32, "/waypoint", self.callback_waypoint, 5)
@@ -219,6 +220,7 @@ class platformNavigator(BasicNavigator):
         result = String()
         result.data = controller.value
         self.pub_controller.publish(result)
+        self.pub_planner.publish(result)
 
         if controller == PlatformController.FollowPath:
             result = String()
