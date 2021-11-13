@@ -489,11 +489,6 @@ class PlatformControlNode(Node):
         rpm_3 = pi_3 * RADPS_TO_RPM
         rpm_4 = pi_4 * RADPS_TO_RPM
 
-        if rpm_1 < 0.01: rpm_1 = 0
-        if rpm_2 < 0.01: rpm_2 = 0
-        if rpm_3 < 0.01: rpm_3 = 0
-        if rpm_4 < 0.01: rpm_4 = 0
-
         return rpm_1, rpm_2, rpm_3, rpm_4
 
     def broadcast_pose(self, x, y, x_encoder, y_encoder, x_t265, y_t265, yaw_t265, yaw_encoder, cur_vel):

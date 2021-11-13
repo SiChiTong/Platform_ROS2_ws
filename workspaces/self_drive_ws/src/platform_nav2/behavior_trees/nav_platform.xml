@@ -10,7 +10,10 @@
             <PipelineSequence name="NavigateWithReplanning">
                 <RateController hz="3.0">
                     <RecoveryNode number_of_retries="2" name="ComputePathToPose">
-                        <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+                        <ReactiveSequence>
+                            <PlannerSelector selected_planner="{selected_planner}" default_planner="GridBased" topic_name="selected_planner"/>
+                            <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}"/>
+                        </ReactiveSequence>
                         <ReactiveFallback name="ComputePathToPoseRecoveryFallback">
                             <GoalUpdated/>
                             <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>

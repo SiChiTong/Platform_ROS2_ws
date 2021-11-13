@@ -38,6 +38,9 @@ except ModuleNotFoundError:
 import threading
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
+# Highly recommended to use platformNavigator method in Main loop only.
+# If use these in callback, It may be stuck in infinite loop.
+
 class PlatformController(Enum):
     FollowPath = "FollowPath"
     Cleaning = "Cleaning"
