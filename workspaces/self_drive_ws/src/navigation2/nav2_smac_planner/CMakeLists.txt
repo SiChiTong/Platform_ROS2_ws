@@ -30,7 +30,11 @@ endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 
-add_compile_options(-O3 -Wextra -Wdeprecated -fPIC)
+if(MSVC)
+  add_compile_definitions(_USE_MATH_DEFINES)
+else()
+  add_compile_options(-O3 -Wextra -Wdeprecated -fPIC)
+endif()
 
 include_directories(
   include
@@ -96,9 +100,6 @@ target_include_directories(${library_name}_2d PUBLIC ${Eigen3_INCLUDE_DIRS})
 ament_target_dependencies(${library_name}_2d
   ${dependencies}
 )
-
-target_compile_definitions(${library_name} PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
-target_compile_definitions(${library_name}_2d PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
 
 pluginlib_export_plugin_description_file(nav2_core smac_plugin.xml)
 pluginlib_export_plugin_description_file(nav2_core smac_plugin_2d.xml)
