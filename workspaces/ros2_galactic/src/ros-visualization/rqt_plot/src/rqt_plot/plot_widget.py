@@ -87,9 +87,12 @@ def get_plot_fields(node, topic_name):
         message = "no topic types found for topic %s " % (topic_name)
         return [], message
 
-    if len(topic_name) < len(real_topic) + 1:
+    if topic_name == real_topic:
+        nested_field_path = topic_name
+        
+    elif len(topic_name) < len(real_topic) + 1:
         message = 'no field specified in topic name "{}"'.format(topic_name)
-        return [], message
+        return [], message        
 
     nested_field_path = topic_name[len(real_topic) + 1:]
 

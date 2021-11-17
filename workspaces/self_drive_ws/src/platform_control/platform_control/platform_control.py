@@ -28,7 +28,7 @@ class PlatformControlNode(Node):
         super().__init__('platform_node')
 
         self.declare_parameter('mode',"NAVIGATION")
-
+        #
         self.ser = self.connect_ser(port)
         self.isRealPlatform = True
 
@@ -47,7 +47,7 @@ class PlatformControlNode(Node):
         self.timer = self.create_timer(self.timer_period, self.timer_callback, clock=self.get_clock())
 
     # ---------------------------------- init ---------------------------------- #
-
+    # 시리얼 포트 초기화
     def connect_ser(self, PORT: str):
         count_connection = 0
         ser = None
@@ -55,6 +55,7 @@ class PlatformControlNode(Node):
 
         while (count_connection < 15) and (not isconnect):
             try:
+                # 시리얼 통신 포트 열기
                 ser = serial.serial_for_url(PORT, baudrate=115200, timeout=1)
                 isconnect = True
             except:
@@ -65,32 +66,43 @@ class PlatformControlNode(Node):
 
         return ser
 
+    # ROS2 초기화
     def init_ROS(self):
+        # TF 송수신용 인스턴스 정의(리소스 할당)
+        # TF: 프레임의 자세, 위치 등을 정의하기 위한 메세지 컨테이너 포맷
         self.br = tf2_ros.TransformBroadcaster(self)
         self.br_static = tf2_ros.StaticTransformBroadcaster(self)
         self.ref_frame = "odom"
+
+        # 현재 로봇 스테이터스를 송신하기 위한 인스턴스 정의(리소스 할당)
         self.pub_t265 = self.create_publisher(Twist, '/cur_vel_t265', 10)
         self.pub_encoder = self.create_publisher(Twist, '/cur_vel_encoder', 10)
         self.pub_odom = self.create_publisher(Odometry, "/odom", 10)
         self.pub_mode = self.create_publisher(std_msgs.msg.String, "/platform_mode", 10)
         self.pub_cmd_LPF = self.create_publisher(Twist, "/cmd_LPF", 10)
+        self.pub_vx = self.create_publisher(Float32, '/cmd_LPF_x', 10)
+        self.pub_vy = self.create_publisher(Float32, '/cmd_LPF_y', 10)
+
+        # 자율 주행 패키지에서 계산한 목표 명령을 받기 위한 인스턴스 정의(리소스 할당)
         self.sub_cmd = self.create_subscription(Twist, "/cmd_vel", self.callback_cmd, 10)
         self.sub_cmd_gui = self.create_subscription(std_msgs.msg.String, "/cmd_controller", self.callback_gui, 10)
-        self.pub_a = self.create_publisher(Float32, '/a', 10)
-        self.pub_b = self.create_publisher(Float32, '/b', 10)
-        self.pub_c = self.create_publisher(Float32, '/c', 10)
 
         self.cmd_vel = Twist()
         self.cmd_vel_LPF = Twist()
 
+        # dt 계산에 쓰일 현지 시간, 이전 시간에 대한 변수 할당
+        # dt: 한 주기동안 소요되는 시간. LPF, 속도 계산 등에 쓰임
         self.cur_time = self.get_clock().now()
         self.prev_time = self.get_clock().now()
 
+    # 플랫폼 파라미터 초기화
     def init_platform(self):
         self.isteleop = False
         self.isConnected = False
         self.mode = cmd_mode.NULL
         self.set_cmd_mode()
+
+        # 로봇의 현재 위치 변수 초기화
         self.x_t265 = 0.0
         self.y_t265 = 0.0
         self.x_encoder = 0.0
@@ -100,11 +112,14 @@ class PlatformControlNode(Node):
 
         if(self.isRealPlatform):
             # real platform
+            # 바퀴 / 롤러 반지름
+            # 롤러: 바퀴 내부에 사선으로 배치된 작은 바퀴들.
             self.R = 0.0635
             self.r = 0.014
             self.sx = 0.29
             self.sy = 0.26
 
+            # 라이다 위치 / 바라보는 자세 (Yaw)
             self.x_init_1 =  0.412
             self.y_init_1 =  0.272425
             self.yaw_init_1 = -180.8
@@ -127,11 +142,13 @@ class PlatformControlNode(Node):
             self.y_init_2 = -0.160
             self.yaw_init_2 = 60.10
 
+        # 로봇 자세 변수 초기화
         self.yaw_init_encoder = None
         self.yaw_init_t265 = None
 
         self.str_buff = str()
 
+    # 명령 모드 세팅
     def set_cmd_mode(self):
         str_mode = self.get_parameter('mode').value
         if(str_mode is "NULL"):
@@ -146,11 +163,12 @@ class PlatformControlNode(Node):
             self.mode = cmd_mode.NULL
         self.print_info(f"Set cmd_mode to {str_mode}")
 
+    # T265 초기화
     def init_realsense(self,json_path=get_package_share_directory('platform_control') + '/config/calibration_odometry.json'):
         ctx = rs.context()
         devices = ctx.query_devices()
         devices_dic = {a.get_info(rs.camera_info.name):
-                           a.get_info(rs.camera_info.serial_number)
+                       a.get_info(rs.camera_info.serial_number)
                        for a in devices}
 
         # Intel RealSense T265
@@ -162,12 +180,9 @@ class PlatformControlNode(Node):
             profile : rs.pipeline_profile = self.cfg_t265.resolve(self.pipe_t265)
             self.t265_WheelOdom = self.load_t265_wheelodom_config(profile,json_path)
 
-            #if(hasattr(self,"t265_WheelOdom")):
-                #self.x_robot_to_t265 = 0.0
-                #self.y_robot_to_t265 = 0.0
-            self.x_robot_to_t265 = - 0.380
-            self.y_robot_to_t265 = 0
-
+            if(hasattr(self,"t265_WheelOdom")):
+                self.x_robot_to_t265 = 0.0
+                self.y_robot_to_t265 = 0.0
 
             self.print_info(f"x: {self.x_robot_to_t265} / y:{self.y_robot_to_t265}")
             self.pipe_t265.start(self.cfg_t265)
@@ -177,6 +192,7 @@ class PlatformControlNode(Node):
             self.print_info("Can't load Intel RealSense T265!")
             self.shutdown_node()
 
+    # 피드백 관련 파라미터 초기화
     def init_feedback(self):
         P_gain_vx = 1
         I_gain_vx = 0
@@ -194,11 +210,15 @@ class PlatformControlNode(Node):
         self.vy_feedback = PID_manager(P_gain_vy, I_gain_vy, D_gain_vy)
         self.dyaw_feedback = PID_manager(P_gain_dyaw, I_gain_dyaw, D_gain_dyaw)
 
+    # 키보드 입력 관련 초기화
     def init_teleop(self):
         self.listener = keyboard.Listener(
             on_press=self.on_press_teleop, on_release=self.on_release_teleop)
         self.listener.start()
 
+    # T265 wheel odometry 기능 초기화
+    # wheel odometry: IMU + 엔코더로 위치 추정을 진행하는 경우 해당 정보를
+    #                 T265상에 입력하면 위치 추정 성능이 개선됨.
     def load_t265_wheelodom_config(self, profile, json_path: str):
         dev = profile.get_device()
         tm2 = dev.as_tm2()
@@ -220,6 +240,8 @@ class PlatformControlNode(Node):
     # ---------------------------------- main ---------------------------------- #
 
     def timer_callback(self):
+
+        # 프로토콜 디코드
         try:
             dict_str = self.protocol_decode(self.ser.read_all().decode())
         except Exception as e:
@@ -252,10 +274,14 @@ class PlatformControlNode(Node):
             x_robot_t265, y_robot_t265, cur_vel_t265 = self.calculate_t265_to_robot_frame(x_t265, y_t265, vx_t265, vy_t265, d_yaw_t265, yaw_t265)
             cur_vel_encoder = self.get_twist(dict_str['VX'], dict_str['VY'], d_yaw_encoder)
 
+
             self.calculate_x_y_raw(cur_vel_t265, cur_vel_encoder, yaw_t265, yaw_t265, dt)
+
             self.sensor_fusion(x_robot_t265, y_robot_t265, self.x_encoder, self.y_encoder, yaw_t265)
+
             self.broadcast_pose(self.x_fusion, self.y_fusion, self.x_encoder, self.y_encoder, x_robot_t265,
                                 y_robot_t265, yaw_t265, yaw_t265, cur_vel_encoder)
+
             self.broadcast_mode(self.mode)
 
             if not self.isConnected:
@@ -267,8 +293,11 @@ class PlatformControlNode(Node):
                 self.pub_cmd_LPF.publish(self.cmd_vel)
 
             if (self.mode == cmd_mode.NAVIGATION):
-                self.command_vel(self.cmd_vel_LPF)
+                self.command_vel(self.cmd_vel)
                 self.pub_cmd_LPF.publish(self.cmd_vel_LPF)
+
+                self.pub_vx.publish(Float32(data=self.cmd_vel_LPF.linear.x))
+                self.pub_vy.publish(Float32(data=self.cmd_vel_LPF.linear.y))
 
     # ---------------------------------- main ---------------------------------- #
 
@@ -324,8 +353,6 @@ class PlatformControlNode(Node):
             if (c >= b):
                 weight_t265 = 0.0
                 weight_encoder = 1.0
-
-            self.pub_a.publish(Float32(data=weight_t265))
 
             self.x_fusion += weight_t265 * dx_robot_t265 + weight_encoder * dx_encoder
             self.y_fusion += weight_t265 * dy_robot_t265 + weight_encoder * dy_encoder
@@ -404,7 +431,7 @@ class PlatformControlNode(Node):
                     return vx, -vy, -data.translation.z, -data.translation.x, yaw_t265
 
         except RuntimeError as e:
-            # print(e)
+            print(e)
             return None, None, None, None, None
 
     def get_twist(self, vx, vy, dyaw):
