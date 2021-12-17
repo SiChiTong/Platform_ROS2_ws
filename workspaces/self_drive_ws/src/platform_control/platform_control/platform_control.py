@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
 
-import std_msgs.msg
 import time
 import rclpy
 from rclpy.node import Node
 
-import pyrealsense2 as rs
+try:
+    import pyrealsense2 as rs
+except:
+    import pyrealsense2.pyrealsense2 as rs
+
 from geometry_msgs.msg import Twist, TransformStamped
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, String
+from tf2_ros import Buffer,TransformListener
 
 import tf2_ros
 import serial
 from pynput import keyboard
+
+from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSHistoryPolicy, \
+    QoSLivelinessPolicy, QoSReliabilityPolicy
 
 try:
     from submodules.tools import *
@@ -24,6 +31,7 @@ sudoPassword = 'as449856'
 PORT_mbed = find_mbed_port(sudoPassword)
 
 class PlatformControlNode(Node):
+    # ---------------------------------- init ---------------------------------- #
     def __init__(self, port: str):
         super().__init__('platform_node')
 
@@ -46,7 +54,6 @@ class PlatformControlNode(Node):
 
         self.timer = self.create_timer(self.timer_period, self.timer_callback, clock=self.get_clock())
 
-    # ---------------------------------- init ---------------------------------- #
     # 시리얼 포트 초기화
     def connect_ser(self, PORT: str):
         count_connection = 0
@@ -68,39 +75,63 @@ class PlatformControlNode(Node):
 
     # ROS2 초기화
     def init_ROS(self):
-        # TF 송수신용 인스턴스 정의(리소스 할당)
+        # TF 송수신용 객체 정의(리소스 할당)
         # TF: 프레임의 자세, 위치 등을 정의하기 위한 메세지 컨테이너 포맷
         self.br = tf2_ros.TransformBroadcaster(self)
         self.br_static = tf2_ros.StaticTransformBroadcaster(self)
         self.ref_frame = "odom"
 
-        # 현재 로봇 스테이터스를 송신하기 위한 인스턴스 정의(리소스 할당)
+        # 현재 로봇 스테이터스를 송신하기 위한 객체 정의(리소스 할당)
         self.pub_t265 = self.create_publisher(Twist, '/cur_vel_t265', 10)
         self.pub_encoder = self.create_publisher(Twist, '/cur_vel_encoder', 10)
         self.pub_odom = self.create_publisher(Odometry, "/odom", 10)
-        self.pub_mode = self.create_publisher(std_msgs.msg.String, "/platform_mode", 10)
+        self.pub_mode = self.create_publisher(String, "/platform_mode", 10)
         self.pub_cmd_LPF = self.create_publisher(Twist, "/cmd_LPF", 10)
-        self.pub_vx = self.create_publisher(Float32, '/cmd_LPF_x', 10)
-        self.pub_vy = self.create_publisher(Float32, '/cmd_LPF_y', 10)
+        self.pub_cmd_cleaning = self.create_publisher(Twist, "/cmd_cleaning", 10)
+        self.pub_e_vx = self.create_publisher(Float32, '/error_vx', 10)
+        self.pub_e_vy = self.create_publisher(Float32, '/error_vy', 10)
+        self.pub_e_dyaw = self.create_publisher(Float32, '/error_dyaw', 10)
 
-        # 자율 주행 패키지에서 계산한 목표 명령을 받기 위한 인스턴스 정의(리소스 할당)
+        self.buffer = Buffer(node=self)
+        self.tf_listener = TransformListener(self.buffer, self)
+
+        # QoS(Quality of Service) 프로필 정의
+        # QoS: 데이터 송수신에서 데이터 송수신 품질을 정의함.
+        #      데이터 신뢰도, 생애 주기, 버퍼 크기 등을 설정할 수 있음.
+        #      Pub, Sub에서 해당 프로필이 일치하지 않는 경우 송수신이 되지 않는 경우가 생길 수 있음.
+        custom_profile = QoSProfile(
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=5,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+            liveliness=QoSLivelinessPolicy.AUTOMATIC,
+            avoid_ros_namespace_conventions=False
+        )
+
+        # 자율 주행 패키지에서 계산한 목표 명령을 받기 위한 객체 정의(리소스 할당)
         self.sub_cmd = self.create_subscription(Twist, "/cmd_vel", self.callback_cmd, 10)
-        self.sub_cmd_gui = self.create_subscription(std_msgs.msg.String, "/cmd_controller", self.callback_gui, 10)
+        self.sub_cmd_gui = self.create_subscription(String, "/cmd_controller", self.callback_gui, 10)
+        self.sub_target_yaw = self.create_subscription(Float32, "/yaw_for_cleaning", self.callback_target_yaw_cleaning, 10)
+        self.sub_controller = self.create_subscription(String, "/selected_controller", self.callback_controller, custom_profile)
+        self.sub_cmd_vision = self.create_subscription(String, "/cmd_vision", self.callback_vision, 10)
 
         self.cmd_vel = Twist()
         self.cmd_vel_LPF = Twist()
+        self.cmd_vel_cleaning = Twist()
+        self.isCleaning = False
 
         # dt 계산에 쓰일 현지 시간, 이전 시간에 대한 변수 할당
-        # dt: 한 주기동안 소요되는 시간. LPF, 속도 계산 등에 쓰임
+        # dt: 한 주기동안 소요되는 시간. 일반적으로 Sampling Time이라고 지칭함. LPF, 속도 계산 등에 쓰임
         self.cur_time = self.get_clock().now()
         self.prev_time = self.get_clock().now()
 
     # 플랫폼 파라미터 초기화
     def init_platform(self):
+        # 플랫폼 모드와 관련된 변수 초기화
         self.isteleop = False
         self.isConnected = False
         self.mode = cmd_mode.NULL
-        self.set_cmd_mode()
+        self.set_cmd_mode(self.get_parameter('mode').value)
 
         # 로봇의 현재 위치 변수 초기화
         self.x_t265 = 0.0
@@ -146,18 +177,19 @@ class PlatformControlNode(Node):
         self.yaw_init_encoder = None
         self.yaw_init_t265 = None
 
+        # 프로토콜 수신을 위한 버퍼 초기화
         self.str_buff = str()
 
     # 명령 모드 세팅
-    def set_cmd_mode(self):
-        str_mode = self.get_parameter('mode').value
-        if(str_mode is "NULL"):
+    def set_cmd_mode(self, mode: str):
+        str_mode = mode
+        if(str_mode == "NULL"):
             self.mode = cmd_mode.NULL
-        elif(str_mode is "OPENLOOP"):
+        elif(str_mode == "OPENLOOP"):
             self.mode = cmd_mode.OPENLOOP
-        elif(str_mode is "FEEDBACK"):
+        elif(str_mode == "FEEDBACK"):
             self.mode = cmd_mode.FEEDBACK
-        elif(str_mode is "NAVIGATION"):
+        elif(str_mode == "NAVIGATION"):
             self.mode = cmd_mode.NAVIGATION
         else:
             self.mode = cmd_mode.NULL
@@ -165,50 +197,60 @@ class PlatformControlNode(Node):
 
     # T265 초기화
     def init_realsense(self,json_path=get_package_share_directory('platform_control') + '/config/calibration_odometry.json'):
+        # 리얼센스 디바이스 리스트 불러오기
         ctx = rs.context()
         devices = ctx.query_devices()
         devices_dic = {a.get_info(rs.camera_info.name):
                        a.get_info(rs.camera_info.serial_number)
                        for a in devices}
 
-        # Intel RealSense T265
+        # Intel RealSense T265 초기화 시도
         try:
             self.pipe_t265 = rs.pipeline()
             self.cfg_t265 = rs.config()
+
+            # T265 활성화 및 자세 데이터 스트리밍 설정 불러오기
             self.cfg_t265.enable_device(devices_dic['Intel RealSense T265'])
             self.cfg_t265.enable_stream(rs.stream.pose)
             profile : rs.pipeline_profile = self.cfg_t265.resolve(self.pipe_t265)
+            # T265 휠 오도메트리 기능 설정 불러오기
             self.t265_WheelOdom = self.load_t265_wheelodom_config(profile,json_path)
-
-            if(hasattr(self,"t265_WheelOdom")):
-                self.x_robot_to_t265 = 0.0
-                self.y_robot_to_t265 = 0.0
+            self.x_robot_to_t265 = -0.36
+            self.y_robot_to_t265 = 0.0
 
             self.print_info(f"x: {self.x_robot_to_t265} / y:{self.y_robot_to_t265}")
+            # T265 활성화
             self.pipe_t265.start(self.cfg_t265)
             self.print_info("Wait for Initalization for T265...")
             time.sleep(2.0)
+        # 예외처리
         except:
             self.print_info("Can't load Intel RealSense T265!")
             self.shutdown_node()
 
     # 피드백 관련 파라미터 초기화
     def init_feedback(self):
-        P_gain_vx = 1
+        P_gain_vx = 1.0
         I_gain_vx = 0
         D_gain_vx = 0
 
-        P_gain_vy = 1
+        P_gain_vy = 1.0
         I_gain_vy = 0
         D_gain_vy = 0
 
-        P_gain_dyaw = 1
+        P_gain_dyaw = 0.3
         I_gain_dyaw = 0
         D_gain_dyaw = 0
 
-        self.vx_feedback = PID_manager(P_gain_vx, I_gain_vx, D_gain_vx)
-        self.vy_feedback = PID_manager(P_gain_vy, I_gain_vy, D_gain_vy)
-        self.dyaw_feedback = PID_manager(P_gain_dyaw, I_gain_dyaw, D_gain_dyaw)
+        P_gain_yaw = 1.0
+        I_gain_yaw = 0.05
+        D_gain_yaw = 2.0
+
+        self.vx_feedback = PID_manager(P_gain_vx, I_gain_vx, D_gain_vx, cmd_threshold=0.05, I_threshold=0.02)
+        self.vy_feedback = PID_manager(P_gain_vy, I_gain_vy, D_gain_vy, cmd_threshold=0.05, I_threshold=0.02)
+        self.dyaw_feedback = PID_manager(P_gain_dyaw, I_gain_dyaw, D_gain_dyaw, cmd_threshold=0.05, I_threshold=0.02)
+
+        self.yaw_feedback = PID_manager(P_gain_yaw, I_gain_yaw, D_gain_yaw, cmd_threshold=0.1, I_threshold=0.1)
 
     # 키보드 입력 관련 초기화
     def init_teleop(self):
@@ -217,8 +259,8 @@ class PlatformControlNode(Node):
         self.listener.start()
 
     # T265 wheel odometry 기능 초기화
-    # wheel odometry: IMU + 엔코더로 위치 추정을 진행하는 경우 해당 정보를
-    #                 T265상에 입력하면 위치 추정 성능이 개선됨.
+    # wheel odometry: IMU + 엔코더로 위치 추정 함께 진행하는 경우 해당 정보를
+    #                 T265 측으로 송신하면 위치 추정 성능이 개선됨.
     def load_t265_wheelodom_config(self, profile, json_path: str):
         dev = profile.get_device()
         tm2 = dev.as_tm2()
@@ -238,7 +280,6 @@ class PlatformControlNode(Node):
         return wheel_odometer
 
     # ---------------------------------- main ---------------------------------- #
-
     def timer_callback(self):
 
         # 프로토콜 디코드
@@ -248,21 +289,27 @@ class PlatformControlNode(Node):
             self.print_info(f"decode_error: {e}")
             return
 
+        # 디코드가 정상적으로 이루어졌는지 확인
         if  (dict_str is None) or not (("VX" in dict_str) & ("VY" in dict_str) & ("Y" in dict_str)):
             return
 
+        # IMU를 통한 Yaw 계산
         yaw_encoder = dict_str['Y'] / 180.0 * math.pi
 
         if (hasattr(self, "pipe_t265")) & (dict_str.__len__() > 3):
-
+            # T265 휠 오도메트리 기능 동작을 위해 하위 제어기에서 계산한 속도 데이터 송신
             self.send_t265_odom(dict_str["VX"],dict_str["VY"])
+            # T265 주행기록계 데이터 수신
             vx_t265, vy_t265, x_t265, y_t265, yaw_t265 = self.get_pose_t265()
 
+            # 데이터 유효성 확인
             if(vx_t265 is None):
                 return
 
+            # Sampling Time 계산
             dt = self.calculate_dt()
 
+            # 각속도 계산
             if hasattr(self,"prev_yaw_encoder"):
                 d_yaw_encoder = (yaw_encoder - self.prev_yaw_encoder) / dt
                 self.prev_yaw_encoder = yaw_encoder
@@ -271,33 +318,55 @@ class PlatformControlNode(Node):
                 d_yaw_t265 = (yaw_t265 - self.prev_yaw_t265) / dt
                 self.prev_yaw_t265 = yaw_t265
 
+            # T265 카메라 주행기록계 데이터를 카메라 기준으로 보정해주는 작업
             x_robot_t265, y_robot_t265, cur_vel_t265 = self.calculate_t265_to_robot_frame(x_t265, y_t265, vx_t265, vy_t265, d_yaw_t265, yaw_t265)
+
+            # 데이터를 ROS2 메시지 형태로 변환하는 작업
             cur_vel_encoder = self.get_twist(dict_str['VX'], dict_str['VY'], d_yaw_encoder)
 
-
+            # 앞에서 계산한 하위제어기, T265의 속도 데이터를 이용하여 플랫폼 위치를 추정하는 작업
             self.calculate_x_y_raw(cur_vel_t265, cur_vel_encoder, yaw_t265, yaw_t265, dt)
 
+            # T265와 하위제어기에서 추정한 위치 데이터를 보정하는 작업
             self.sensor_fusion(x_robot_t265, y_robot_t265, self.x_encoder, self.y_encoder, yaw_t265)
 
+            # 최종적으로 계산한 위치 데이터를 Publish하는 과정
             self.broadcast_pose(self.x_fusion, self.y_fusion, self.x_encoder, self.y_encoder, x_robot_t265,
                                 y_robot_t265, yaw_t265, yaw_t265, cur_vel_encoder)
 
+            # 플랫폼 모드를 Publish하는 과정
             self.broadcast_mode(self.mode)
 
+            # 플랫폼이 정상 작동중인지 확인
             if not self.isConnected:
                 self.print_info("Try to broadcasting...")
                 self.isConnected = True
 
+            # 플랫폼 모드에 따라 주행이 다르게 이루어짐
             if (self.mode == cmd_mode.FEEDBACK):
                 self.command_vel(self.cmd_vel)
                 self.pub_cmd_LPF.publish(self.cmd_vel)
 
-            if (self.mode == cmd_mode.NAVIGATION):
-                self.command_vel(self.cmd_vel)
-                self.pub_cmd_LPF.publish(self.cmd_vel_LPF)
+            elif (self.mode == cmd_mode.NAVIGATION):
+                if self.isCleaning:
+                    cmd_vel_cleaning = self.calculate_cmd_cleaning(self.cmd_vel_LPF, dt)
+                    self.command_vel(cmd_vel_cleaning)
 
-                self.pub_vx.publish(Float32(data=self.cmd_vel_LPF.linear.x))
-                self.pub_vy.publish(Float32(data=self.cmd_vel_LPF.linear.y))
+                    self.pub_cmd_LPF.publish(self.cmd_vel_LPF)
+                    self.pub_cmd_cleaning.publish(cmd_vel_cleaning)
+                else:
+                    cmd_vel_FB = self.calculate_feedback(self.cmd_vel_LPF,cur_vel_t265,dt)
+                    # cmd_vel_FB = self.cmd_vel_LPF
+                    self.command_vel(cmd_vel_FB)
+                    self.pub_cmd_LPF.publish(cmd_vel_FB)
+                    self.pub_e_vx.publish(Float32(data=cmd_vel_FB.linear.x - cur_vel_t265.linear.x))
+                    self.pub_e_vy.publish(Float32(data=cmd_vel_FB.linear.y - cur_vel_t265.linear.y))
+                    self.pub_e_dyaw.publish(Float32(data=cmd_vel_FB.angular.z - cur_vel_t265.angular.z))
+                    # self.command_vel(self.cmd_vel_LPF)
+                    # self.pub_cmd_LPF.publish(self.cmd_vel_LPF)
+                    #
+                    # self.pub_vx.publish(Float32(data=self.cmd_vel_LPF.linear.x))
+                    # self.pub_vy.publish(Float32(data=self.cmd_vel_LPF.linear.y))
 
     # ---------------------------------- main ---------------------------------- #
 
@@ -330,32 +399,36 @@ class PlatformControlNode(Node):
         # 회전 + 병진 : a / (a+b), b / (a+b)
         # 다만 보정 계수가 필요함.
 
-        k1 = 1.0
-        k2 = 1.0
-        k3 = 4.0
+        k1 = 1.5
+        k2 = 4.0
 
-        threshold_ratio_disturb = 0.6
-        threshold_ratio_teleport = 20.0
+        threshold_meter_teleport = 0.15
 
         if (dyaw != 0) or (dx_robot_t265 != 0) or (dx_encoder != 0):
-            a_raw = math.sqrt(dx_robot_t265 * dx_robot_t265 + dy_robot_t265 * dy_robot_t265)
-            b_raw = math.sqrt(dx_encoder * dx_encoder + dy_encoder * dy_encoder)
-            c_raw = math.sqrt(dyaw * dyaw)
+            dv_t265 = math.sqrt(dx_robot_t265 * dx_robot_t265 + dy_robot_t265 * dy_robot_t265)
+            dv_dr = math.sqrt(dx_encoder * dx_encoder + dy_encoder * dy_encoder)
+            f1 = math.fabs(dyaw)
+            f2 = dv_dr
 
-            a = a_raw * (1 / k1)
-            b = b_raw * (1 / k2)
-            c = c_raw * (1 / k3)
-            d = a_raw - b_raw
+            if dv_dr !=0:
+                weight_dr = (k1 * f1) / (k1 * f1 + k2 * f2)
+            else:
+                weight_dr = 1.0
 
-            weight_t265 = 1.0
-            weight_encoder = 1 - weight_t265
+            weight_t265 = 1.0 - weight_dr
 
-            if (c >= b):
-                weight_t265 = 0.0
-                weight_encoder = 1.0
+            # self.print_info(f"w_dr: {weight_dr:.3f} / w_t265: {weight_t265:.3f}")
 
-            self.x_fusion += weight_t265 * dx_robot_t265 + weight_encoder * dx_encoder
-            self.y_fusion += weight_t265 * dy_robot_t265 + weight_encoder * dy_encoder
+            self.x_fusion += weight_t265 * dx_robot_t265 + weight_dr * dx_encoder
+            self.y_fusion += weight_t265 * dy_robot_t265 + weight_dr * dy_encoder
+
+            check_w_t265 = weight_t265 > 0.9
+            check_teleport = (dv_t265 - dv_dr > threshold_meter_teleport)
+
+            if check_w_t265 and check_teleport:
+                self.print_info("Teleport Occured!")
+                self.x_fusion = x_robot_t265
+                self.y_fusion = y_robot_t265
 
         self.prev_x_robot_t265 = x_robot_t265
         self.prev_y_robot_t265 = y_robot_t265
@@ -426,9 +499,9 @@ class PlatformControlNode(Node):
 
                 yaw_t265 = y - self.yaw_init_t265
                 if(self.isRealPlatform):
-                    return -vx, vy, data.translation.z, data.translation.x, -yaw_t265
+                    return vx, vy, data.translation.z, data.translation.x, -yaw_t265
                 else:
-                    return vx, -vy, -data.translation.z, -data.translation.x, yaw_t265
+                    return -vx, -vy, -data.translation.z, -data.translation.x, yaw_t265
 
         except RuntimeError as e:
             print(e)
@@ -538,7 +611,8 @@ class PlatformControlNode(Node):
 
         t1 = TransformStamped()
         t1.header.stamp = now_stamp
-        t1.header.frame_id = self.ref_frame
+        # t1.header.frame_id = self.ref_frame
+        t1.header.frame_id = "map"
         t1.child_frame_id = "robot_base_encoder"
         t1.transform.translation.x = x_encoder
         t1.transform.translation.y = y_encoder
@@ -553,7 +627,8 @@ class PlatformControlNode(Node):
 
         t2 = TransformStamped()
         t2.header.stamp = now_stamp
-        t2.header.frame_id = self.ref_frame
+        # t2.header.frame_id = self.ref_frame
+        t2.header.frame_id = "map"
         t2.child_frame_id = "robot_base_t265"
         t2.transform.translation.x = x_t265
         t2.transform.translation.y = y_t265
@@ -566,6 +641,21 @@ class PlatformControlNode(Node):
         t2.transform.rotation.y = q2[2]
         t2.transform.rotation.z = q2[3]
 
+        t3 = TransformStamped()
+        t3.header.stamp = now_stamp
+        t3.header.frame_id = "map"
+        t3.child_frame_id = "robot_base_no_amcl"
+        t3.transform.translation.x = x
+        t3.transform.translation.y = y
+        t3.transform.translation.z = 0.0
+
+        q3 = quaternion_from_euler(0, 0, yaw_t265)
+
+        t3.transform.rotation.w = q3[0]
+        t3.transform.rotation.x = q3[1]
+        t3.transform.rotation.y = q3[2]
+        t3.transform.rotation.z = q3[3]
+
         self.broadcast_tf2_static()
 
         odom = Odometry()
@@ -574,8 +664,8 @@ class PlatformControlNode(Node):
         odom.header.frame_id = "odom"
         odom.child_frame_id = "robot_base"
 
-        odom.pose.pose.position.x = x_encoder
-        odom.pose.pose.position.y = y_encoder
+        odom.pose.pose.position.x = x
+        odom.pose.pose.position.y = y
         odom.pose.pose.orientation.w = q1[0]
         odom.pose.pose.orientation.x = q1[1]
         odom.pose.pose.orientation.y = q1[2]
@@ -587,9 +677,10 @@ class PlatformControlNode(Node):
         self.br.sendTransform(t0)
         self.br.sendTransform(t1)
         self.br.sendTransform(t2)
+        self.br.sendTransform(t3)
 
     def broadcast_mode(self, mode: cmd_mode):
-        str_mode = std_msgs.msg.String()
+        str_mode = String()
 
         if(mode is cmd_mode.NULL):
             str_mode.data = "NULL"
@@ -602,54 +693,64 @@ class PlatformControlNode(Node):
 
         self.pub_mode.publish(str_mode)
 
-    def feedback_ctrl(self, cmd_vel : Twist, cur_vel : Twist, dt):
+    def calculate_cmd_cleaning(self, cmd_vel: Twist, dt: float):
+        if(self.isCleaning and hasattr(self,'target_yaw')):
+            tf_now = self.get_robot_base()
+
+            _, _, cur_yaw = euler_from_quaternion(tf_now.transform.rotation.x,
+                                                  tf_now.transform.rotation.y,
+                                                  tf_now.transform.rotation.z,
+                                                  tf_now.transform.rotation.w)
+
+            error = self.target_yaw - cur_yaw
+
+            # if error > math.pi:
+            #     error -= 2 * math.pi
+            cmd_vel_cleaning = Twist()
+            cmd_angular_vel = self.yaw_feedback.calculate_cmd(error,dt)
+
+            cmd_vel_cleaning.linear.x = cmd_vel.linear.x
+            cmd_vel_cleaning.linear.y = cmd_vel.linear.y
+            cmd_vel_cleaning.angular.z = cmd_vel.angular.z + cmd_angular_vel
+            # cmd_vel_cleaning.angular.z = cmd_angular_vel
+
+            self.print_info(f"e: {error} / cmd: {cmd_angular_vel}")
+
+            return cmd_vel_cleaning
+        else:
+            return Twist()
+
+    def calculate_feedback(self, cmd_vel : Twist, cur_vel : Twist, dt):
         vx_error = cmd_vel.linear.x - cur_vel.linear.x
         vy_error = cmd_vel.linear.y - cur_vel.linear.y
         dyaw_error = cmd_vel.angular.z - cur_vel.angular.z
 
-        cmd_vx = self.vx_feedback.calculate_cmd(vx_error, dt)
-        cmd_vy = self.vy_feedback.calculate_cmd(vy_error, dt)
-        cmd_dyaw = self.dyaw_feedback.calculate_cmd(dyaw_error, dt)
+        cmd_vx_FB = self.vx_feedback.calculate_cmd(vx_error, dt)
+        cmd_vy_FB = self.vy_feedback.calculate_cmd(vy_error, dt)
+        cmd_dyaw_FB = self.dyaw_feedback.calculate_cmd(dyaw_error, dt)
 
         cmd_tw = Twist()
-        cmd_tw.linear.x = vx_error
-        cmd_tw.linear.y = vy_error
-        cmd_tw.angular.z = dyaw_error
+        cmd_tw.linear.x = cmd_vel.linear.x + cmd_vx_FB
+        cmd_tw.linear.y = cmd_vel.linear.y + cmd_vy_FB
+        cmd_tw.angular.z = cmd_vel.angular.z + cmd_dyaw_FB
 
-        self.pub_error.publish(cmd_tw)
+        if cmd_vel.linear.x == 0.0:
+            cmd_tw.linear.x = 0.0
+        if cmd_vel.linear.y == 0.0:
+            cmd_tw.linear.y = 0.0
+        if cmd_vel.angular.z == 0.0:
+            cmd_tw.angular.z = 0.0
 
+        # self.pub_error.publish(cmd_tw)
         # print(f"vx: {vx_error:.3f} / vy: {vy_error:.3f} / dyaw: {dyaw_error:.3f}")
 
-        return self.calculate_cmd_rpm(cmd_tw)
+        return cmd_tw
 
-    def command_vel(self, cmd_vel : Twist):
+    def command_vel(self, cmd_vel: Twist, k=1.25):
         rpm_LF, rpm_RF, rpm_LB, rpm_RB = self.calculate_cmd_rpm(cmd_vel)
-        str_cmd = get_str_cmdFeedback(rpm_LF*1.25, rpm_RF*1.25, rpm_LB*1.25, rpm_RB*1.25)
+
+        str_cmd = get_str_cmdFeedback(rpm_LF * k, rpm_RF * k, rpm_LB * k, rpm_RB * k)
         self.ser.write(str_cmd.encode())
-
-    def callback_cmd(self, msg : Twist):
-        if(self.mode == cmd_mode.NAVIGATION):
-            self.cmd_vel = msg
-
-            if((self.cmd_vel_LPF.linear.x == 0)):
-                self.cmd_vel_LPF = msg
-            else:
-                self.cmd_vel_LPF.linear.x = 0.9 * self.cmd_vel_LPF.linear.x + 0.1 * self.cmd_vel.linear.x
-                self.cmd_vel_LPF.linear.y = 0.9 * self.cmd_vel_LPF.linear.y + 0.1 * self.cmd_vel.linear.y
-                self.cmd_vel_LPF.angular.z = 0.9 * self.cmd_vel_LPF.angular.z + 0.1 * self.cmd_vel.angular.z
-
-                if (self.cmd_vel.linear.x == 0.0): self.cmd_vel_LPF.linear.x = 0.0
-                if (self.cmd_vel.linear.y == 0.0): self.cmd_vel_LPF.linear.y = 0.0
-                if (self.cmd_vel.angular.z == 0.0): self.cmd_vel_LPF.angular.z = 0.0
-
-    def callback_gui(self, msg : std_msgs.msg.String):
-        if(self.ser.writable()):
-            self.ser.write(msg.data.encode())
-            self.ser.write(msg.data.encode())
-            self.ser.write(msg.data.encode())
-            self.print_info(f"send: {msg.data.encode()}")
-        else:
-            self.print_info(f"Can't send {msg.data.encode()}'")
 
     def broadcast_tf2_static(self):
         now_stamp = self.get_clock().now().to_msg()
@@ -732,11 +833,26 @@ class PlatformControlNode(Node):
         t5.transform.rotation.y = 0.0
         t5.transform.rotation.z = 0.0
 
+        t6 = TransformStamped()
+        t6.header.stamp = now_stamp
+        t6.header.frame_id = "robot_base"
+        t6.child_frame_id = "realsense_d455"
+
+        t6.transform.translation.x = 0.0
+        t6.transform.translation.y = 0.0
+        t6.transform.translation.z = 0.925
+
+        t6.transform.rotation.w = 1.0
+        t6.transform.rotation.x = 0.0
+        t6.transform.rotation.y = 0.0
+        t6.transform.rotation.z = 0.0
+
         self.br.sendTransform(t1)
         self.br.sendTransform(t2)
         self.br.sendTransform(t3)
         self.br.sendTransform(t4)
         self.br.sendTransform(t5)
+        self.br.sendTransform(t6)
 
     def on_press_teleop(self, key):
         if (self.mode == cmd_mode.OPENLOOP):
@@ -828,6 +944,54 @@ class PlatformControlNode(Node):
 
     def print_info(self, str_info: str):
         self.get_logger().info(str_info)
+
+    def get_robot_base(self, target="robot_base"):
+        try:
+            tf = self.buffer.lookup_transform("map", target, rclpy.time.Time())  # Blocking
+            return tf
+        except Exception as e:
+            self.info(f"error: {e}")
+            return None
+
+    def callback_cmd(self, msg : Twist):
+        if(self.mode == cmd_mode.NAVIGATION):
+            self.cmd_vel = msg
+
+            if((self.cmd_vel_LPF.linear.x == 0)):
+                self.cmd_vel_LPF = msg
+            else:
+                self.cmd_vel_LPF.linear.x = 0.9 * self.cmd_vel_LPF.linear.x + 0.1 * self.cmd_vel.linear.x
+                self.cmd_vel_LPF.linear.y = 0.9 * self.cmd_vel_LPF.linear.y + 0.1 * self.cmd_vel.linear.y
+                self.cmd_vel_LPF.angular.z = 0.9 * self.cmd_vel_LPF.angular.z + 0.1 * self.cmd_vel.angular.z
+
+                if (self.cmd_vel.linear.x == 0.0): self.cmd_vel_LPF.linear.x = 0.0
+                if (self.cmd_vel.linear.y == 0.0): self.cmd_vel_LPF.linear.y = 0.0
+                if (self.cmd_vel.angular.z == 0.0): self.cmd_vel_LPF.angular.z = 0.0
+
+    def callback_gui(self, msg : String):
+        if(self.ser.writable()):
+            self.ser.write(msg.data.encode())
+            self.ser.write(msg.data.encode())
+            self.ser.write(msg.data.encode())
+            self.print_info(f"send: {msg.data.encode()}")
+        else:
+            self.print_info(f"Can't send {msg.data.encode()}'")
+
+    def callback_vision(self, msg : String):
+        print(msg.data)
+
+    def callback_controller(self, msg : String):
+        str_msg = msg.data
+        if(str_msg == "Cleaning"):
+            self.isCleaning = True
+        else:
+            self.isCleaning = False
+
+        self.print_info(f"isCleaning: {self.isCleaning}")
+
+    def callback_target_yaw_cleaning(self, msg: Float32):
+        self.target_yaw = msg.data
+
 
 def main(args=None):
     rclpy.init(args=args)

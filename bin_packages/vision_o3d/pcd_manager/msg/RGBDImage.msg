@@ -1,0 +1,3 @@
+pcd_manager/SerializedArray color
+pcd_manager/SerializedArray depth
+pcd_manager/SerializedArray depth_to_xyz

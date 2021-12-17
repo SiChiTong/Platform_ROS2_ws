@@ -39,14 +39,25 @@ def generate_launch_description():
         executable=pcd_executable,
         name='pcd_publisher',
         output='screen',
-        parameters=[{'show_FPS': False}])
+        parameters=[{'show_running_time': False,
+                     'rate': 15.0,
+                     'is_downsample': True,     
+                     'cutoff_border': 0.05,
+                     'show_pcd': False,
+                     'show_cv2': False,
+                     }])
 
     pkg_cmd = Node(
         package=package_name,
         executable=pkg_executable,
         name='detect_yolo',
         output='screen',
-        parameters=[{'show_FPS': False}])
+        parameters=[{'show_running_time': False,
+                     'rate': 10.0,
+                     'show_pcd': True,
+                     'show_cv2': True,
+                     'use_open3d': False,
+                     'downsample_rate': 0.04}])
 
     ld = LaunchDescription()
 

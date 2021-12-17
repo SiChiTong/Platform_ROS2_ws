@@ -45,6 +45,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_costmap_2d/layer.hpp"
 #include "nav2_costmap_2d/layered_costmap.hpp"
+#include "rcl_interfaces/msg/set_parameters_result.hpp"
+
 
 namespace nav2_costmap_2d
 {
@@ -223,9 +225,9 @@ private:
    */
   int generateIntegerDistances();
 
-  /**
-   * @brief Compute cached dsitances
-   */
+	/**
+	 * @brief Compute cached dsitances
+	 */
   unsigned int cellDistance(double world_dist)
   {
     return layered_costmap_->getCostmap()->cellDistance(world_dist);
@@ -254,7 +256,10 @@ private:
   unsigned int cache_length_;
   double last_min_x_, last_min_y_, last_max_x_, last_max_y_;
 
-  // Indicates that the entire costmap should be reinflated next time around.
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler;
+  rcl_interfaces::msg::SetParametersResult dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
+
+	// Indicates that the entire costmap should be reinflated next time around.
   bool need_reinflation_;
   mutex_t * access_;
 };

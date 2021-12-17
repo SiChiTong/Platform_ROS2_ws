@@ -19,15 +19,25 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rclpy REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
 ament_python_install_package(${PROJECT_NAME})
 
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/BoundingBox3D.msg"
+  "msg/DetectionResult.msg"
+  DEPENDENCIES geometry_msgs std_msgs
+  )
+
 install(PROGRAMS
   ${PROJECT_NAME}/yolov5/detect_yolo.py
-  ${PROJECT_NAME}/yolact/detect_yolact.py
   DESTINATION lib/${PROJECT_NAME}
   )
 

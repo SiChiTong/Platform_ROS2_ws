@@ -39,6 +39,7 @@ def generate_launch_description():
     robot_name = LaunchConfiguration('robot_base', default="robot_base")
     visualization_map = LaunchConfiguration('visualization_map', default=False)
     visualization_bbox = LaunchConfiguration('visualization_bbox', default=True)
+    verbose = LaunchConfiguration('verbose', default=True)
 
     gui_cmd = Node(
         package='platform_gui',
@@ -55,7 +56,7 @@ def generate_launch_description():
         parameters=[{"robot_base": robot_name,
                      "visualization_map" : visualization_map,
                      "visualization_bbox" : visualization_bbox,
-
+                     "verbose": verbose,
     }])
 
     ld = LaunchDescription()

@@ -5,7 +5,7 @@ project(librealsense2 LANGUAGES CXX C)
 include(CMake/lrs_options.cmake)
 include(CMake/connectivity_check.cmake)
 
-set(BUILD_WITH_CUDA)
+set(BUILD_WITH_CUDA True)
 set(BUILD_PYTHON_BINDINGS True)
 
 #Deprecation message, should be removed in future releases

@@ -2,7 +2,7 @@ from helpers.geometry import *
 import math
 # return list of points
 
-def sweep(vertexes, width, step=None, safeWidth=None):
+def sweep(vertexes, width, step=None, safeWidth=None, thresh_last_step=None):
     # width of tuolaji
     WIDTH = width
     STEP = step
@@ -48,6 +48,21 @@ def sweep(vertexes, width, step=None, safeWidth=None):
         intersections.extend(newIntersect)
 
         longestEdge = longestEdge.shift(WIDTH)
+
+    # Calculate Last Sweep intersection.
+    if (safeWidth != None) and (thresh_last_step != None):
+        safe_width_sweep = safeWidth
+        longestEdge = longestEdge.shift(-WIDTH)
+        dist_edge_vertices = round(edges[0].maxY - longestEdge.getIntersection(edges[0]).y)
+
+        if (safe_width_sweep > 0) and (dist_edge_vertices > WIDTH * thresh_last_step):
+            longestEdge = longestEdge.shift(dist_edge_vertices)
+            newIntersect = []
+            for edge in edges:
+                inter = longestEdge.getIntersection(edge)
+                if inter is not None:
+                    newIntersect.append(inter)
+            intersections.extend(newIntersect)
 
     reorderIntersections(edges, intersections)
 

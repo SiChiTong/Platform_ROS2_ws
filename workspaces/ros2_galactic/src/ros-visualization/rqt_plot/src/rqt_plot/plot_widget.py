@@ -75,7 +75,9 @@ def get_plot_fields(node, topic_name):
     topics = node.get_topic_names_and_types()
     real_topic = None
     for name, topic_types in topics:
-        if name == topic_name[:len(name)]:
+        candidate = name.split('/')
+        desired = topic_name.split('/')
+        if candidate == desired[:len(candidate)]:
             real_topic = name
             topic_type_str = topic_types[0] if topic_types else None
             break
@@ -87,12 +89,9 @@ def get_plot_fields(node, topic_name):
         message = "no topic types found for topic %s " % (topic_name)
         return [], message
 
-    if topic_name == real_topic:
-        nested_field_path = topic_name
-        
-    elif len(topic_name) < len(real_topic) + 1:
+    if len(topic_name) < len(real_topic) + 1:
         message = 'no field specified in topic name "{}"'.format(topic_name)
-        return [], message        
+        return [], message
 
     nested_field_path = topic_name[len(real_topic) + 1:]
 

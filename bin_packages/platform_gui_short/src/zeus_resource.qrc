@@ -1,0 +1,47 @@
+<RCC>
+    <qresource prefix="/">
+        <file>img/pic_auto.jpg</file>
+        <file>img/pic_setting.jpg</file>
+        <file>img/pic_mapping.jpg</file>
+        <file>img/pic_logo_2.jpg</file>
+        <file>img/pic_logo_1.jpg</file>
+        <file>img/logo.PNG</file>
+        <file>img/Wifi-2-icon.png</file>
+        <file>img/pic_manual.jpg</file>
+        <file>img/free-icon-no-wifi-1686538.png</file>
+        <file>img/empty-battery-512.jpg</file>
+        <file>img/empty-battery-512-removebg-preview.png</file>
+        <file>img/battery_green.png</file>
+        <file>img/water_red.png</file>
+        <file>img/water_blue.png</file>
+        <file>img/water.png</file>
+        <file>img/speed100.png</file>
+        <file>img/speed75.png</file>
+        <file>img/speed50.png</file>
+        <file>img/speed25.png</file>
+        <file>img/gage_bar.png</file>
+        <file>img/brush_change2.png</file>
+        <file>img/brush_change1.png</file>
+        <file>img/water-removebg-preview (1).png</file>
+        <file>img/btn_clean.PNG</file>
+        <file>img/btn_waterin.PNG</file>
+        <file>img/btn_waterout.PNG</file>
+        <file>img/btn_charging.PNG</file>
+        <file>img/btn_homing.PNG</file>
+        <file>img/btn_clean2.PNG</file>
+        <file>img/btn_waterin2.PNG</file>
+        <file>img/btn_waterout2.PNG</file>
+        <file>img/btn_charging2.PNG</file>
+        <file>img/btn_homing2.PNG</file>
+        <file>img/brush1_2-removebg-preview.png</file>
+        <file>img/brush2_2-removebg-preview.png</file>
+        <file>img/brush3_2-removebg-preview.png</file>
+        <file>img/sucktion1_1-removebg-preview.png</file>
+        <file>img/sucktion2_1-removebg-preview.png</file>
+        <file>img/sucktion3_1-removebg-preview.png</file>
+        <file>img/mapping.png</file>
+        <file>img/autoclean.png</file>
+        <file>img/manualclean.png</file>
+        <file>img/setting.png</file>
+    </qresource>
+</RCC>

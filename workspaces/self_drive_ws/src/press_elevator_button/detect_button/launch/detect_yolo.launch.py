@@ -25,7 +25,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 import launch
 
-package_name = 'detection_2d'
+package_name = 'detect_button'
 
 def generate_launch_description():
     package_prefix = get_package_share_directory(package_name)
@@ -39,19 +39,32 @@ def generate_launch_description():
         executable=pcd_executable,
         name='pcd_publisher',
         output='screen',
-        parameters=[{'show_FPS': False}])
+        parameters=[{'show_running_time': False,
+                     'is_downsample': False,
+                     'cutoff_border': 0.1,
+                     'show_pcd': False,
+                     'show_cv2': True,
+                     'rate': 15.0}])
 
     pkg_cmd = Node(
         package=package_name,
         executable=pkg_executable,
         name='detect_yolo',
         output='screen',
-        parameters=[{'show_FPS': False}])
+        parameters=[{'show_running_time': False}])
+
+    arm_cmd = Node(
+        package='robot_arm_server',
+        executable='server',
+        name='robot_arm_server',
+        output='screen',
+        parameters=[])
 
     ld = LaunchDescription()
 
     # Add the commands to the launch description
     ld.add_action(pcd_cmd)
     ld.add_action(pkg_cmd)
+    ld.add_action(arm_cmd)
 
     return ld

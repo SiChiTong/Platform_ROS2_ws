@@ -65,7 +65,7 @@ def remove_too_small_cells(quad_cells: list, robot_w, robot_h):
         if isSmall:
             quad_cells.remove(cell)
 
-def find_cleaning_path(bbox_area, map, visualize=False):
+def find_cleaning_path(bbox_area, map, visualize=False, threshold_last_step=None):
     if (bbox_area is not None):
 
         bbox_area_origin = bbox_area.copy()
@@ -80,7 +80,7 @@ def find_cleaning_path(bbox_area, map, visualize=False):
         bbox_area_viz = cv2.copyMakeBorder(bbox_area_viz, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=[255])
 
         approxes, bbox_area_th = generate_polygon_countour_np(bbox_area_viz)
-        path = find_path(map, approxes, visualize=visualize)
+        path = find_sweep_path(map, approxes, visualize=visualize, threshold_last_step=threshold_last_step)
 
         if visualize:
             bbox_area_viz_morp = cv2.cvtColor(bbox_area_th.copy(), cv2.COLOR_GRAY2RGB)
@@ -90,7 +90,7 @@ def find_cleaning_path(bbox_area, map, visualize=False):
 
         return path
 
-def find_path(map, approxes, visualize=False):
+def find_sweep_path(map, approxes, visualize=False, threshold_last_step = None):
     polygons = [np.squeeze(x) for x in approxes]
 
     y_limit_lower = min([pt[1] for pt in polygons[0]])
@@ -152,7 +152,7 @@ def find_path(map, approxes, visualize=False):
     # Plot final cells
 
     # nodes = generate_node_set(all_cell, width=robot_w, step=robot_h * 2, safeWidth=robot_w * 2)
-    nodes = generate_node_set(all_cell, width=robot_w * 2, safeWidth=robot_w * 2)
+    nodes = generate_node_set(all_cell, width=robot_w * 2, safeWidth=robot_w * 2, threshold_last_step=threshold_last_step)
 
     if(visualize): a4 = plt.figure(figsize=(20,10),num=4)
 
@@ -165,7 +165,9 @@ def find_path(map, approxes, visualize=False):
         x.append(x[0])
         y = [j.y for j in i.polygon]
         y.append(y[0])
-        plt.plot(x, y)
+
+        if(visualize):
+            plt.plot(x, y)
 
         path_x = [pnt.x for pnt in i.inside_path]
         path_y = [pnt.y for pnt in i.inside_path]
@@ -173,67 +175,16 @@ def find_path(map, approxes, visualize=False):
         if len(path_node) != 0:
             path.append(path_node)
 
-        plt.plot(path_x, path_y)
-        for pnt in i.inside_path:
-            plt.plot(pnt.x, pnt.y, marker="o")
+        if(visualize):
+            plt.plot(path_x, path_y)
+            for pnt in i.inside_path:
+                plt.plot(pnt.x, pnt.y, marker="o")
 
         center = centroid(i.polygon)
-        plt.plot(center.x, center.y, marker="o")
+
+        if(visualize): plt.plot(center.x, center.y, marker="o")
+
         plt.annotate('cell-{}'.format(index), xy=(center.x, center.y))
 
     if(visualize): plt.show(block=True)
     return path
-
-# def main():
-#     rclpy.init()
-#     navigator = platformNavigator(init_x=0.0, init_y=0.0, init_yaw=0.0)
-#
-#     # executor = rclpy.executors.MultiThreadedExecutor(num_threads=3)
-#     # aa = executor.add_node(navigator)
-#     #
-#     # executor_thread = threading.Thread(target=executor.spin, daemon=True)
-#     # executor_thread.start()
-#
-#     is_goal_first = True
-#
-#     # Wait for navigation to fully activate, since autostarting nav2
-#     navigator.get_logger().info("Wait for Navigation2...")
-#     navigator.waitUntilNav2Active()
-#     cvbridge = cv_bridge.CvBridge()
-#
-#     rate = rate_mine(30.0)
-#
-#     while rclpy.ok():
-#
-#         # TODO: CPP 구현
-#         # navigator.update_map_data(str_robot="robot_base")
-#
-#         navigator.update_map_data()
-#         viz_map = navigator.map.visualization()
-#         msg_map = cvbridge.cv2_to_imgmsg(viz_map)
-#         navigator.pub_map_img.publish(msg_map)
-#
-#         if navigator.waypoint_target != None:
-#             if is_goal_first:
-#                 is_goal_first = False
-#             else:
-#                 navigator.cancelNav()
-#             navigator.goToPose(navigator.waypoint_target)
-#             navigator.waypoint_target = None
-#             navigator.get_logger().info("Running...")
-#
-#         map: ProcessedMap = navigator.map
-#         bbox_area: np.ndarray = map.get_map_bbox()
-#
-#         path = find_cleaning_path(bbox_area, map,visualize=True)
-#
-#         k = cv2.waitKey(1) & 0xFF
-#
-#         rate.sleep(navigator)
-#
-#         if k == 27:
-#             break
-#
-#
-# if __name__ == '__main__':
-#     main()

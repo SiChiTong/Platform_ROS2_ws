@@ -1,18 +1,21 @@
 #! /usr/bin/env python3
+import math
+
+import rclpy
+import rclpy.timer
+import numpy as np
+import cv2
 
 from datetime import datetime
-
 import time
 import yaml
 import os
 
 from geometry_msgs.msg import PoseStamped, Pose, PoseWithCovarianceStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, NavigationResult
-from rcl_interfaces.srv import GetParameters
-import rclpy
-import rclpy.timer
-import numpy as np
-import cv2
+from rcl_interfaces.srv import GetParameters, SetParameters
+from rcl_interfaces.msg import Parameter, ParameterValue, ParameterType
+
 from tf2_ros import Buffer, TransformListener
 
 from nav_msgs.msg import OccupancyGrid, Odometry
@@ -20,7 +23,7 @@ from nav_msgs.srv import GetMap
 from nav2_msgs.msg import Costmap
 from geometry_msgs.msg import TransformStamped, Polygon, Point32
 from sensor_msgs.msg import Image
-from std_msgs.msg import Int8, String
+from std_msgs.msg import Int8, String, Float32
 import cv_bridge
 from enum import Enum
 from action_msgs.msg import GoalStatus
@@ -29,17 +32,22 @@ from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSHistoryPolicy, \
                       QoSLivelinessPolicy, QoSReliabilityPolicy
 
 from rclpy.duration import Duration
+from detection_2d.msg import DetectionResult, BoundingBox3D
 
 try:
     from planner_for_cleaning import *
 except ModuleNotFoundError:
     from .planner_for_cleaning import *
 
-import threading
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+################################# README!!! ###############################################
 
-# Highly recommended to use platformNavigator method in Main loop only.
+# platformNavigator 클래스 메소드는 반드시 메인 루프에서 사용하는 것을 권장함.
+# callback 내에서 메소드 사용 시 교착 상태(Deadlock)에 빠질 위험성이 있음.
+
+# Highly recommended to use platformNavigator methods in Main loop only.
 # If use these in callback, It may be stuck in infinite loop.
+
+################################# README!!! ###############################################
 
 class PlatformController(Enum):
     FollowPath = "FollowPath"
@@ -114,16 +122,28 @@ class platformNavigator(BasicNavigator):
         super().__init__()
 
         self.initial_pose = create_pose_from_x_y_yaw(init_x, init_y, init_yaw, self.get_clock())
-        self.param_srv = self.create_client(GetParameters, '/map_server/get_parameters')
+        self.param_get_map_srv = self.create_client(GetParameters, '/map_server/get_parameters')
+        self.param_get_init_speed = self.create_client(GetParameters, '/controller_server/get_parameters')
+        self.param_get_global_costmap_srv = self.create_client(GetParameters, '/global_costmap/global_costmap/get_parameters')
+        self.param_get_local_costmap_srv = self.create_client(GetParameters, '/local_costmap/local_costmap/get_parameters')
+        self.param_set_global_costmap_srv = self.create_client(SetParameters, '/global_costmap/global_costmap/set_parameters')
+        self.param_set_local_costmap_srv = self.create_client(SetParameters, '/local_costmap/local_costmap/set_parameters')
+        self.param_set_init_speed = self.create_client(SetParameters, '/controller_server/set_parameters')
 
         self.declare_parameter('robot_base',"base_link")
-
         self.declare_parameter('visualization_map',False)
         self.declare_parameter('visualization_bbox',True)
+        self.declare_parameter('verbose',False)
+        self.declare_parameter('inflation_radius_cleaning', 0.5)
+        self.declare_parameter('footprint_padding_cleaning', 0.05)
 
         self.robot_base = self.get_parameter('robot_base').value
         self.isVisualization_map = self.get_parameter('visualization_map').value
         self.isVisualization_bbox = self.get_parameter('visualization_bbox').value
+        self.inflation_radius_cleaning = self.get_parameter('inflation_radius_cleaning').value
+        self.footprint_padding_cleaning = self.get_parameter('footprint_padding_cleaning').value
+
+        self.verbose = self.get_parameter('verbose').value
 
         self.info(f"map: {self.isVisualization_map}")
         self.info(f"bbox: {self.isVisualization_bbox}")
@@ -135,6 +155,7 @@ class platformNavigator(BasicNavigator):
         self.buffer = Buffer(node=self)
         self.tf_listener = TransformListener(self.buffer, self)
         self.pub_map_img = self.create_publisher(Image, '/processed_map',1)
+        self.pub_target_yaw = self.create_publisher(Float32, '/yaw_for_cleaning',1)
 
         custom_profile = QoSProfile(
             history=QoSHistoryPolicy.KEEP_LAST,
@@ -150,11 +171,13 @@ class platformNavigator(BasicNavigator):
         self.pub_goal_checker = self.create_publisher(String, '/selected_goal_checker', custom_profile)
 
         self.sub_waypoint = self.create_subscription(Point32, "/waypoint", self.callback_waypoint, 5)
-        self.sub_bbox = self.create_subscription(Polygon, "/selected_area", self.callback_bbox, 5)
+        self.sub_bbox = self.create_subscription(Polygon, "/selected_area", self.callback_bbox_cleaning, 5)
         self.sub_cmd_gui = self.create_subscription(String, "/cmd_navigator", self.callback_gui, 5)
+        self.sub_result = self.create_subscription(DetectionResult, "/bbox", self.callback_detection, 5)
 
         self.map = None
         self.cost_map = ProcessedMap(Costmap())
+        self.objects = None
 
         self.isCleaning = False
         self.flag_stop_cleaning = False
@@ -167,6 +190,24 @@ class platformNavigator(BasicNavigator):
         self._waitForInitialPose()
         self._waitForNodeToActivate('bt_navigator')
         self.info('Nav2 is ready for use!')
+        return
+
+    def _waitForInitialPose(self):
+        while not self.initial_pose_received:
+            self.info('Setting initial pose')
+            self._setInitialPose()
+            self.info('Waiting for amcl_pose to be received')
+            time.sleep(1.0)
+            rclpy.spin_once(self, timeout_sec=1.0)
+        return
+
+    def _setInitialPose(self):
+        msg = PoseWithCovarianceStamped()
+        msg.pose.pose = self.initial_pose.pose
+        msg.header.frame_id = self.initial_pose.header.frame_id
+        msg.header.stamp = self.get_clock().now().to_msg()
+        self.info('Publishing Initial Pose')
+        self.initial_pose_pub.publish(msg)
         return
 
     def isNavComplete(self):
@@ -190,7 +231,7 @@ class platformNavigator(BasicNavigator):
     def get_map_ros2(self):
         req_param = GetParameters.Request()
         req_param.names = ["yaml_filename"]
-        result_future_param = self.param_srv.call_async(req_param)
+        result_future_param = self.param_get_map_srv.call_async(req_param)
         rclpy.spin_until_future_complete(self, result_future_param)
         map_yaml_path = result_future_param.result().values[0].string_value
 
@@ -201,6 +242,46 @@ class platformNavigator(BasicNavigator):
             map_param['image'] = '/' + os.path.join(*map_split, map_param['image'])
 
         return map_param
+
+    def get_default_costmap_param(self):
+        req_param = GetParameters.Request()
+        req_param.names = ["inflation_layer.inflation_radius", "footprint_padding"]
+
+        result_future_param = self.param_get_global_costmap_srv.call_async(req_param)
+        rclpy.spin_until_future_complete(self, result_future_param)
+        self.inflation_radius_global = result_future_param.result().values[0].double_value
+        self.footprint_padding_global = result_future_param.result().values[1].double_value
+
+        result_future_param = self.param_get_local_costmap_srv.call_async(req_param)
+        rclpy.spin_until_future_complete(self, result_future_param)
+        self.inflation_radius_local = result_future_param.result().values[0].double_value
+        self.footprint_padding_local = result_future_param.result().values[1].double_value
+
+    def get_default_speed_param(self):
+        req_param = GetParameters.Request()
+        req_param.names = ["FollowPath.max_vel_x", "FollowPath.min_vel_x", "FollowPath.max_vel_theta",
+                           "Cleaning.max_vel_x", "Cleaning.min_vel_x",
+                           "Cleaning.max_vel_y", "Cleaning.min_vel_y","Cleaning.max_vel_theta",]
+
+        result_future_param = self.param_get_init_speed.call_async(req_param)
+        rclpy.spin_until_future_complete(self, result_future_param)
+        self.follow_path_max_vel_x = result_future_param.result().values[0].double_value
+        self.follow_path_min_vel_x = result_future_param.result().values[1].double_value
+        self.follow_path_max_vel_theta = result_future_param.result().values[2].double_value
+        self.cleaning_max_vel_x = result_future_param.result().values[3].double_value
+        self.cleaning_min_vel_x = result_future_param.result().values[4].double_value
+        self.cleaning_max_vel_y = result_future_param.result().values[5].double_value
+        self.cleaning_min_vel_y = result_future_param.result().values[6].double_value
+        self.cleaning_max_vel_theta = result_future_param.result().values[7].double_value
+
+        self.follow_path_max_vel_x_default = self.follow_path_max_vel_x
+        self.follow_path_min_vel_x_default = self.follow_path_min_vel_x
+        self.follow_path_max_vel_theta_default = self.follow_path_max_vel_theta
+        self.cleaning_max_vel_x_default = self.cleaning_max_vel_x
+        self.cleaning_min_vel_x_default = self.cleaning_min_vel_x
+        self.cleaning_max_vel_y_default = self.cleaning_max_vel_y
+        self.cleaning_min_vel_y_default = self.cleaning_min_vel_y
+        self.cleaning_max_vel_theta_default = self.cleaning_max_vel_theta
 
     def get_robot_base(self, target:str):
         try:
@@ -222,14 +303,120 @@ class platformNavigator(BasicNavigator):
         self.pub_controller.publish(result)
         self.pub_planner.publish(result)
 
+        req_param = SetParameters.Request()
+
         if controller == PlatformController.FollowPath:
             result = String()
             result.data = PlatformGoalChecker.general_goal_checker.value
             self.pub_goal_checker.publish(result)
+
+            req_param.parameters = []
+            param = Parameter(name='inflation_layer.inflation_radius')
+            param.value.type = ParameterType.PARAMETER_DOUBLE
+            param.value.double_value = self.inflation_radius_global
+            req_param.parameters.append(param)
+            param = Parameter(name='footprint_padding')
+            param.value.type = ParameterType.PARAMETER_DOUBLE
+            param.value.double_value = self.footprint_padding_global
+            req_param.parameters.append(param)
+            result_future_param = self.param_set_global_costmap_srv.call_async(req_param)
+            rclpy.spin_until_future_complete(self, result_future_param)
+
+            param = Parameter(name='inflation_layer.inflation_radius')
+            param.value.type = ParameterType.PARAMETER_DOUBLE
+            param.value.double_value = self.inflation_radius_local
+            req_param.parameters.append(param)
+            param = Parameter(name='footprint_padding')
+            param.value.type = ParameterType.PARAMETER_DOUBLE
+            param.value.double_value = self.footprint_padding_local
+            param.value.double_value = self.footprint_padding_local
+            req_param.parameters.append(param)
+            result_future_param = self.param_set_local_costmap_srv.call_async(req_param)
+            rclpy.spin_until_future_complete(self, result_future_param)
+
         elif controller == PlatformController.Cleaning:
             result = String()
             result.data = PlatformGoalChecker.cleaning_goal_checker.value
             self.pub_goal_checker.publish(result)
+
+            req_param.parameters = []
+            param = Parameter(name='inflation_layer.inflation_radius')
+            param.value.type = ParameterType.PARAMETER_DOUBLE
+            param.value.double_value = self.inflation_radius_cleaning
+            req_param.parameters.append(param)
+            param = Parameter(name='footprint_padding')
+            param.value.type = ParameterType.PARAMETER_DOUBLE
+            param.value.double_value = self.footprint_padding_cleaning
+            req_param.parameters.append(param)
+
+            result_future_param = self.param_set_global_costmap_srv.call_async(req_param)
+            rclpy.spin_until_future_complete(self, result_future_param)
+            result_future_param = self.param_set_local_costmap_srv.call_async(req_param)
+            rclpy.spin_until_future_complete(self, result_future_param)
+
+    def set_robot_speed(self, controller: PlatformController, vel_x, vel_y, vel_theta):
+        req_param = SetParameters.Request()
+
+        if controller == PlatformController.FollowPath:
+            req_param.parameters = []
+            if (vel_x != self.follow_path_max_vel_x) or (vel_theta != self.follow_path_max_vel_theta):
+
+                param = Parameter(name="FollowPath.max_vel_x")
+                param.value.type = ParameterType.PARAMETER_DOUBLE
+                param.value.double_value = vel_x
+                req_param.parameters.append(param)
+                param = Parameter(name="FollowPath.min_vel_x")
+                param.value.type = ParameterType.PARAMETER_DOUBLE
+                param.value.double_value = -vel_x
+                req_param.parameters.append(param)
+                param = Parameter(name="FollowPath.max_vel_theta")
+                param.value.type = ParameterType.PARAMETER_DOUBLE
+                param.value.double_value = vel_theta
+                req_param.parameters.append(param)
+
+                result_future_param = self.param_set_init_speed.call_async(req_param)
+                rclpy.spin_until_future_complete(self, result_future_param)
+
+                self.follow_path_max_vel_x = vel_x
+                self.follow_path_min_vel_x = -vel_x
+                self.follow_path_max_vel_theta = vel_theta
+                self.info(f"FollowPath: Set robot_speed to {vel_x}, 0.0, {vel_theta}")
+
+        if controller == PlatformController.Cleaning:
+            req_param.parameters = []
+            if (vel_x != self.cleaning_max_vel_x) or (vel_y != self.cleaning_max_vel_y) or \
+               (vel_theta != self.cleaning_max_vel_theta):
+
+                param = Parameter(name="Cleaning.max_vel_x")
+                param.value.type = ParameterType.PARAMETER_DOUBLE
+                param.value.double_value = vel_x
+                req_param.parameters.append(param)
+                param = Parameter(name="Cleaning.min_vel_x")
+                param.value.type = ParameterType.PARAMETER_DOUBLE
+                param.value.double_value = -vel_x
+                req_param.parameters.append(param)
+                param = Parameter(name="Cleaning.max_vel_y")
+                param.value.type = ParameterType.PARAMETER_DOUBLE
+                param.value.double_value = vel_y
+                req_param.parameters.append(param)
+                param = Parameter(name="Cleaning.min_vel_y")
+                param.value.type = ParameterType.PARAMETER_DOUBLE
+                param.value.double_value = -vel_y
+                req_param.parameters.append(param)
+                param = Parameter(name="Cleaning.max_vel_theta")
+                param.value.type = ParameterType.PARAMETER_DOUBLE
+                param.value.double_value = vel_theta
+                req_param.parameters.append(param)
+
+                result_future_param = self.param_set_init_speed.call_async(req_param)
+                rclpy.spin_until_future_complete(self, result_future_param)
+
+                self.cleaning_max_vel_x = vel_x
+                self.cleaning_min_vel_x = -vel_x
+                self.cleaning_max_vel_y = vel_y
+                self.cleaning_min_vel_y = -vel_y
+                self.cleaning_max_vel_theta = vel_theta
+                self.info(f"Cleaning: Set robot_speed to {vel_x}, {vel_y}")
 
     def update_map_data(self, str_robot=None, ratio_x=1.0, ratio_y=1.0):
         if(str_robot is None): str_robot=self.robot_base
@@ -250,7 +437,7 @@ class platformNavigator(BasicNavigator):
         waypoint_pose = create_pose_from_x_y_yaw(msg.x, msg.y, msg.z, clock=self.get_clock())
         self.waypoint_target = waypoint_pose
 
-    def callback_bbox(self, msg: Polygon):
+    def callback_bbox_cleaning(self, msg: Polygon):
         if self.check_map():
             if self.isCleaning: self.stop_cleaning()
 
@@ -278,6 +465,9 @@ class platformNavigator(BasicNavigator):
             elif cmd == "Stop":
                 self.stop_cleaning()
 
+    def callback_detection(self, msg: DetectionResult):
+        self.objects: list = msg.result
+
     def start_cleaning(self):
         if self.isCleaning:
             if(self.current_progress_path == -1):
@@ -298,20 +488,19 @@ class platformNavigator(BasicNavigator):
             return False
 
         if self.isCleaning and self.check_progress_cleaning():
-            progressed_path: list = self.cleaning_poses[self.current_progress_path]
+            self.progressed_path: list = self.cleaning_poses[self.current_progress_path]
 
             if (self.current_progress_path >= (len(self.cleaning_poses) - 1)) and \
-               (self.current_progress_pose >= (len(progressed_path) - 1)):
+               (self.current_progress_pose >= (len(self.progressed_path) - 1)):
                 self.info("progress all path!")
                 self.stop_cleaning()
                 return True
 
             else:
-                progressed_path: list = self.cleaning_poses[self.current_progress_path]
-                if self.current_progress_pose < (len(progressed_path) - 1):
+                if self.current_progress_pose < (len(self.progressed_path) - 1):
                     self.current_progress_pose += 1
                     self.set_controller(PlatformController.Cleaning)
-                    self.goToPose(progressed_path[self.current_progress_pose])
+                    self.goToPose(self.progressed_path[self.current_progress_pose])
                 else:
                     self.current_progress_path += 1
 
@@ -444,6 +633,36 @@ class ProcessedMap():
 
         return np.array([p1_viz, p2_viz, p3_viz, p4_viz], dtype=np.int32)
 
+    def get_object_rect(self, x, y, scale_x, scale_y, robot_x, robot_y, robot_yaw):
+
+        robot_real = Rectangle(robot_x + x * math.cos(robot_yaw) + y * math.cos(robot_yaw + math.pi / 2),
+                               robot_y + x * math.sin(robot_yaw) + y * math.sin(robot_yaw + math.pi / 2),
+                               scale_y, scale_x)
+
+        p1, p2, p3, p4 = robot_real.rotate_rectangle(round(robot_yaw,1))
+
+        p1_viz = self.position_to_np(p1.x, p1.y)
+        p2_viz = self.position_to_np(p2.x, p2.y)
+        p3_viz = self.position_to_np(p3.x, p3.y)
+        p4_viz = self.position_to_np(p4.x, p4.y)
+
+        return np.array([p1_viz, p2_viz, p3_viz, p4_viz], dtype=np.int32)
+
+    def get_object_rect_bbox(self, x, y, scale_x, scale_y, robot_x, robot_y, robot_yaw):
+
+        robot_real = Rectangle(robot_x + x * math.cos(robot_yaw) + y * math.cos(robot_yaw + math.pi / 2),
+                               robot_y + x * math.sin(robot_yaw) + y * math.sin(robot_yaw + math.pi / 2),
+                               scale_y, scale_x)
+
+        p1, p2, p3, p4 = robot_real.rotate_rectangle(round(robot_yaw,1))
+
+        p1_viz = self.position_to_np_bbox(p1.x, p1.y)
+        p2_viz = self.position_to_np_bbox(p2.x, p2.y)
+        p3_viz = self.position_to_np_bbox(p3.x, p3.y)
+        p4_viz = self.position_to_np_bbox(p4.x, p4.y)
+
+        return np.array([p1_viz, p2_viz, p3_viz, p4_viz], dtype=np.int32)
+
     def get_map_bbox(self):
         if self.check_bbox():
             p1 = self.bbox[0]
@@ -487,7 +706,7 @@ class ProcessedMap():
         y_bbox_to_map = y_LU + y / self.ratio_y_bbox
         return (x_bbox_to_map / self.ratio_x - x_ref) * self.resolution, -(y_bbox_to_map / self.ratio_y - y_ref) * self.resolution
 
-    def visualization(self):
+    def visualization(self, objects=None):
         np_map = self.np_map.copy()
         np_map = cv2.cvtColor(np_map,cv2.COLOR_GRAY2RGB)
 
@@ -501,6 +720,10 @@ class ProcessedMap():
             w_x, w_y = self.position_to_np(self.waypoint.position.x, self.waypoint.position.y)
             np_map = cv2.circle(np_map, [w_x, w_y], 8, [255, 0, 0], thickness=-1)
 
+        if objects != None:
+            np_map = self.draw_object(objects, robot_x, robot_y, robot_yaw, np_map)
+
+        np_map = cv2.fillPoly(np_map, [points_robot_viz], color=[0, 255, 0])
         np_map = cv2.fillPoly(np_map, [points_robot_viz], color=[0, 255, 0])
         np_map = cv2.resize(np_map, [int(self.size_x * self.ratio_x), int(self.size_y * self.ratio_y)])
 
@@ -511,7 +734,7 @@ class ProcessedMap():
 
         return np_map
 
-    def visualization_bbox(self,visualize_progress=False):
+    def visualization_bbox(self, visualize_progress=False, threshold_last_step=0.3, objects=None):
         if self.check_bbox():
             p1 = self.bbox[0]
             p2 = self.bbox[1]
@@ -527,10 +750,14 @@ class ProcessedMap():
             robot_x, robot_y, robot_yaw = self.get_robot_base()
             points_robot_viz = self.get_robot_rect_bbox(robot_x, robot_y, robot_yaw)
 
+            if objects != None:
+                map_result = self.draw_object_bbox(objects, robot_x, robot_y, robot_yaw, map_result)
+
             map_result = cv2.fillPoly(map_result, [points_robot_viz], color=[0, 255, 0])
             map_result = cv2.resize(map_result, [int(size_x * self.ratio_x_bbox), int(size_y * self.ratio_y_bbox)])
 
-            cleaning_path = self.calculate_cleaning_path(map_origin, visualize_progress=visualize_progress)
+            cleaning_path = self.calculate_cleaning_path(map_origin, visualize_progress=visualize_progress,
+                                                         threshold_last_step=threshold_last_step)
 
             if cleaning_path is not None:
                 map_result = visualize_path(map_result,cleaning_path)
@@ -539,15 +766,14 @@ class ProcessedMap():
         else:
             return None
 
-    def calculate_cleaning_path(self, bbox_origin, visualize_progress=False):
-
+    def calculate_cleaning_path(self, bbox_origin, visualize_progress=False, threshold_last_step=None):
         # try just once in each bbox
         if not self.try_to_calculate_path:
             self.try_to_calculate_path = True
             try:
                 bbox_resize = cv2.resize(bbox_origin, [int(bbox_origin.shape[1] * self.ratio_x_bbox),
                                                        int(bbox_origin.shape[0] * self.ratio_y_bbox)])
-                self.cleaning_path= find_cleaning_path(bbox_resize, self, visualize=visualize_progress)
+                self.cleaning_path= find_cleaning_path(bbox_resize, self, visualize=visualize_progress,threshold_last_step=threshold_last_step)
             except Exception as e:
                 self.cleaning_path = None
                 print(e)
@@ -581,6 +807,39 @@ class ProcessedMap():
         return hasattr(self,"cleaning_path") and (self.cleaning_path is not None) and \
                self.check_bbox()
 
+    def draw_object(self, objects, robot_x, robot_y, robot_yaw, map):
+        map_new = map.copy()
+        for i in range(len(objects)):
+            result: BoundingBox3D = objects[i]
+            points_result = self.get_object_rect(result.pose.position.x,
+                                                 result.pose.position.y,
+                                                 result.scale.x,
+                                                 result.scale.y,
+                                                 robot_x, robot_y, robot_yaw)
+            color_result = [round(result.color.r * 255.0),
+                            round(result.color.g * 255.0),
+                            round(result.color.b * 255.0)]
+
+            map_new = cv2.polylines(map_new, [points_result], True, color=color_result)
+        return map_new
+
+    def draw_object_bbox(self, objects, robot_x, robot_y, robot_yaw, map):
+        map_new = map.copy()
+        for i in range(len(objects)):
+            result: BoundingBox3D = objects[i]
+            points_result = self.get_object_rect_bbox(result.pose.position.x,
+                                                      result.pose.position.y,
+                                                      result.scale.x,
+                                                      result.scale.y,
+                                                      robot_x, robot_y, robot_yaw)
+
+            color_result = [round(result.color.r * 255.0),
+                            round(result.color.g * 255.0),
+                            round(result.color.b * 255.0)]
+
+            map_new = cv2.polylines(map_new, [points_result], True, color=color_result)
+        return map_new
+
     def check_bbox(self):
         return hasattr(self,"bbox") and (self.bbox is not None)
 
@@ -593,8 +852,9 @@ class rate_mine():
         process_time = (datetime.now() - self.dt0).total_seconds()
         period = 1.0 / self.rate
 
+        rclpy.spin_once(node, timeout_sec=0.01)
         while (process_time <= period):
-            rclpy.spin_once(node, timeout_sec=0.1)
+            rclpy.spin_once(node, timeout_sec=0.01)
             process_time = (datetime.now() - self.dt0).total_seconds()
 
         self.dt0 = datetime.now()
@@ -690,10 +950,10 @@ def main():
 
     # Wait for navigation to fully activate, since autostarting nav2
     navigator.get_logger().info("Wait for Navigation2...")
+
     navigator.waitUntilNav2Active()
     cvbridge = cv_bridge.CvBridge()
-
-    rate = rate_mine(30.0)
+    rate = rate_mine(20.0)
 
     def click_callback_map(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -713,12 +973,15 @@ def main():
     isGoalProgress = False
     i = 0
 
+    navigator.get_default_costmap_param()
+    navigator.get_default_speed_param()
+
     while rclpy.ok():
 
         check_stop_cleaning(navigator)
 
         navigator.update_map_data()
-        viz_map = navigator.map.visualization()
+        viz_map = navigator.map.visualization(objects=navigator.objects)
         msg_map = cvbridge.cv2_to_imgmsg(viz_map)
         navigator.pub_map_img.publish(msg_map)
 
@@ -726,7 +989,7 @@ def main():
             cv2.imshow(map_win_name,viz_map)
             cv2.setMouseCallback(map_win_name,click_callback_map)
 
-        bbox_area = navigator.map.visualization_bbox(visualize_progress=False)
+        bbox_area = navigator.map.visualization_bbox(visualize_progress=False,threshold_last_step=0.4,objects=navigator.objects)
 
         if(navigator.isVisualization_bbox) & (bbox_area is not None):
             cv2.imshow(bbox_win_name,bbox_area)
@@ -738,6 +1001,60 @@ def main():
             except Exception as e:
                 if not e.err == "NULL guiReceiver (please create a window)":
                     print(e)
+
+        if (navigator.objects is not None) and (navigator.objects.__len__() > 0):
+            from typing import Iterable, cast
+
+            objects: list = navigator.objects
+            person_list = [a for a in cast(Iterable[BoundingBox3D], objects) if a.name == "person"]
+
+            if not navigator.check_progress_cleaning():
+
+                is_slow = [a for a in cast(Iterable[BoundingBox3D], person_list)
+                           if (a.pose.position.x < 3.0) and (math.fabs(a.pose.position.y) < 0.5)]
+                is_stop = [a for a in cast(Iterable[BoundingBox3D], person_list)
+                           if (a.pose.position.x < 0.8) and (math.fabs(a.pose.position.y) < 0.5)]
+
+                if (is_stop):
+                    navigator.set_robot_speed(PlatformController.FollowPath,
+                                              0.0, 0.0, 0.0)
+                elif (is_slow):
+                    navigator.set_robot_speed(PlatformController.FollowPath,
+                                              navigator.follow_path_max_vel_x_default * 0.6,
+                                              0.0,
+                                              navigator.follow_path_max_vel_theta_default * 0.6)
+
+
+                else:
+                    navigator.set_robot_speed(PlatformController.FollowPath,
+                                              navigator.follow_path_max_vel_x_default,
+                                              0.0,
+                                              navigator.follow_path_max_vel_theta_default)
+            else:
+
+                is_stop = [a for a in cast(Iterable[BoundingBox3D], person_list)
+                           if (a.pose.position.x < 1.0) and (math.fabs(a.pose.position.y) < 0.5)]
+
+                if (is_stop):
+                    navigator.set_robot_speed(PlatformController.Cleaning,
+                                              0.0, 0.0, 0.0)
+                else:
+                    navigator.set_robot_speed(PlatformController.Cleaning,
+                                              navigator.cleaning_max_vel_x_default,
+                                              navigator.cleaning_max_vel_y_default,
+                                              navigator.cleaning_max_vel_theta_default)
+
+        else:
+            if not navigator.check_progress_cleaning():
+                navigator.set_robot_speed(PlatformController.FollowPath,
+                                          navigator.follow_path_max_vel_x_default,
+                                          0.0,
+                                          navigator.follow_path_max_vel_theta_default)
+            else:
+                navigator.set_robot_speed(PlatformController.Cleaning,
+                                          navigator.cleaning_max_vel_x_default,
+                                          navigator.cleaning_max_vel_y_default,
+                                          navigator.cleaning_max_vel_theta_default)
 
         # Waypoint
         if navigator.waypoint_target != None:
@@ -769,7 +1086,7 @@ def main():
         if isGoalProgress:
             if not navigator.isNavComplete():
                 i += 1
-                if i % 10 == 0:
+                if (i % 10 == 0) and (navigator.verbose):
                     feedback = navigator.getFeedback()
                     print_progress_msg(navigator, feedback)
 
@@ -792,13 +1109,22 @@ def main():
                     if(result == NavigationResult.SUCCEEDED):
                         if navigator.progress_cleaning():
                             isGoalProgress = False
-
                     if(result == NavigationResult.CANCELED):
                         navigator.info("Cleaning Canceled!")
                         navigator.stop_cleaning()
                     if(result == NavigationResult.FAILED):
                         navigator.info("Cleaning Failed!")
                         navigator.stop_cleaning()
+
+        if navigator.check_progress_cleaning() and isGoalProgress and hasattr(navigator, 'progressed_path'):
+            cur_pose: PoseStamped = navigator.progressed_path[navigator.current_progress_pose]
+            x = cur_pose.pose.orientation.x
+            y = cur_pose.pose.orientation.y
+            z = cur_pose.pose.orientation.z
+            w = cur_pose.pose.orientation.w
+
+            _, _, cur_yaw = euler_from_quaternion(x,y,z,w)
+            navigator.pub_target_yaw.publish(Float32(data=cur_yaw))
 
         k = cv2.waitKey(1) & 0xFF
         rate.sleep(navigator)

@@ -2,6 +2,12 @@
 Changelog for package yaml_cpp_vendor
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+7.1.1 (2021-12-07)
+------------------
+* Update maintainers to Audrow Nash (`#26 <https://github.com/ros2/yaml_cpp_vendor/issues/26>`_)
+* Fix handling of CMAKE_C[XX]_FLAGS lists (`#24 <https://github.com/ros2/yaml_cpp_vendor/issues/24>`_)
+* Contributors: Christophe Bedard, Scott K Logan
+
 7.1.0 (2021-03-18)
 ------------------
 * Always preserve source permissions in vendor packages (`#22 <https://github.com/ros2/yaml_cpp_vendor/issues/22>`_)

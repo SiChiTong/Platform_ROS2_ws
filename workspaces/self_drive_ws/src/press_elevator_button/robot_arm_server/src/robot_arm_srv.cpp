@@ -44,7 +44,7 @@
 #define DXL3_ID                          3                   // Dynamixel ID: 3
 #define DXL4_ID                          4                   // Dynamixel ID: 4
 #define BAUDRATE                        115200
-#define DEVICENAME                      "/dev/ttyACM1"      // Check which port is being used on your controller
+#define DEVICENAME                      "/dev/ttyACM0"      // Check which port is being used on your controller
 // ex) Windows: "COM1"   Linux: "/dev/ttyUSB0" Mac: "/dev/tty.usbserial-*"
 
 #define TORQUE_ENABLE                   1                   // Value for enabling the torque
@@ -110,110 +110,145 @@ void msecSleep(int waitTime) {
 #endif
 }
 
-void Cleaner_Arm_Generate_Ori(std::array<double, 3> &targ_P, std::array<double, 9> &Ori) {
+void Cleaner_Arm_Generate_Ori(std::array<double, 3> &targ_P, std::array<double, 9> &Ori1, std::array<double, 9> &Ori2) {
+	static const double y[9] = {0.93969262078590832, 0.0, 0.0, 0.0,
+	                            0.93969262078590832, 0.0, 0.0, 0.0, 0.93969262078590832};
+
+	double a[9];
+	double b_vrr[9];
+	double vrr[9];
 	double a_vector_idx_0;
-
 	double a_vector_idx_1;
-
 	double absxk;
-
 	double n_vector_idx_2;
-
 	double scale;
-
 	double t;
-
+	int i;
+	int vrr_tmp;
 	scale = 3.3121686421112381E-170;
-
 	absxk = std::abs(targ_P[0]);
-
 	if (absxk > 3.3121686421112381E-170) {
-
 		n_vector_idx_2 = 1.0;
-
 		scale = absxk;
-
 	} else {
-
 		t = absxk / 3.3121686421112381E-170;
-
 		n_vector_idx_2 = t * t;
 	}
 
-
 	absxk = std::abs(targ_P[1]);
-
 	if (absxk > scale) {
-
 		t = scale / absxk;
-
 		n_vector_idx_2 = n_vector_idx_2 * t * t + 1.0;
-
 		scale = absxk;
-
 	} else {
-
 		t = absxk / scale;
-
 		n_vector_idx_2 += t * t;
-
 	}
-
 
 	absxk = std::abs(targ_P[2] - 200.0);
-
 	if (absxk > scale) {
-
 		t = scale / absxk;
-
 		n_vector_idx_2 = n_vector_idx_2 * t * t + 1.0;
-
 		scale = absxk;
-
 	} else {
-
 		t = absxk / scale;
-
 		n_vector_idx_2 += t * t;
-
 	}
 
-
 	n_vector_idx_2 = scale * std::sqrt(n_vector_idx_2);
-
 	a_vector_idx_0 = targ_P[0] / n_vector_idx_2;
-
 	a_vector_idx_1 = targ_P[1] / n_vector_idx_2;
-
 	scale = (targ_P[2] - 200.0) / n_vector_idx_2;
 
-
-
 	//  targ_P 는 열벡터
-
 	absxk = 0.0 * scale - (-a_vector_idx_1);
-
 	t = -a_vector_idx_0 - 0.0 * scale;
-
 	n_vector_idx_2 = 0.0 * a_vector_idx_1 - 0.0 * a_vector_idx_0;
+	Ori1[3] = a_vector_idx_1 * n_vector_idx_2 - scale * t;
+	Ori1[4] = scale * absxk - a_vector_idx_0 * n_vector_idx_2;
+	Ori1[5] = a_vector_idx_0 * t - a_vector_idx_1 * absxk;
+	Ori1[0] = absxk;
+	Ori1[6] = a_vector_idx_0;
+	Ori1[1] = t;
+	Ori1[7] = a_vector_idx_1;
+	Ori1[2] = n_vector_idx_2;
+	Ori1[8] = scale;
+	scale = 3.3121686421112381E-170;
+	absxk = std::abs(targ_P[0]);
+	if (absxk > 3.3121686421112381E-170) {
+		n_vector_idx_2 = 1.0;
+		scale = absxk;
+	} else {
+		t = absxk / 3.3121686421112381E-170;
+		n_vector_idx_2 = t * t;
+	}
 
-	Ori[3] = a_vector_idx_1 * n_vector_idx_2 - scale * t;
+	absxk = std::abs(targ_P[1]);
+	if (absxk > scale) {
+		t = scale / absxk;
+		n_vector_idx_2 = n_vector_idx_2 * t * t + 1.0;
+		scale = absxk;
+	} else {
+		t = absxk / scale;
+		n_vector_idx_2 += t * t;
+	}
 
-	Ori[4] = scale * absxk - a_vector_idx_0 * n_vector_idx_2;
+	n_vector_idx_2 = scale * std::sqrt(n_vector_idx_2);
+	a_vector_idx_0 = targ_P[0] / n_vector_idx_2;
+	a_vector_idx_1 = targ_P[1] / n_vector_idx_2;
+	scale = 0.0 / n_vector_idx_2;
+	absxk = -a_vector_idx_1 - scale * 0.0;
+	t = scale * 0.0 - (-a_vector_idx_0);
+	n_vector_idx_2 = a_vector_idx_0 * 0.0 - a_vector_idx_1 * 0.0;
+	vrr[0] = absxk;
+	vrr[3] = absxk;
+	vrr[6] = absxk;
+	vrr[1] = t;
+	vrr[4] = t;
+	vrr[7] = t;
+	vrr[2] = n_vector_idx_2;
+	vrr[5] = n_vector_idx_2;
+	vrr[8] = n_vector_idx_2;
+	for (i = 0; i < 3; i++) {
+		b_vrr[3 * i] = vrr[3 * i] * vrr[i];
+		vrr_tmp = 3 * i + 1;
+		b_vrr[vrr_tmp] = vrr[vrr_tmp] * vrr[i + 3];
+		vrr_tmp = 3 * i + 2;
+		b_vrr[vrr_tmp] = vrr[vrr_tmp] * vrr[i + 6];
+	}
 
-	Ori[5] = a_vector_idx_0 * t - a_vector_idx_1 * absxk;
+	std::memcpy(&vrr[0], &b_vrr[0], 9U * sizeof(double));
+	b_vrr[0] = 0.0;
+	b_vrr[3] = 0.34202014332566882 * -n_vector_idx_2;
+	b_vrr[6] = 0.34202014332566882 * t;
+	b_vrr[1] = 0.34202014332566882 * n_vector_idx_2;
+	b_vrr[4] = 0.0;
+	b_vrr[7] = 0.34202014332566882 * -absxk;
+	b_vrr[2] = 0.34202014332566882 * -t;
+	b_vrr[5] = 0.34202014332566882 * absxk;
+	b_vrr[8] = 0.0;
+	a[0] = 0.0;
+	a[3] = absxk;
+	a[6] = a_vector_idx_0;
+	a[1] = 0.0;
+	a[4] = t;
+	a[7] = a_vector_idx_1;
+	a[2] = -1.0;
+	a[5] = n_vector_idx_2;
+	a[8] = scale;
+	for (i = 0; i < 9; i++) {
+		vrr[i] = (y[i] + 0.060307379214091683 * vrr[i]) + b_vrr[i];
+	}
 
-	Ori[0] = absxk;
-
-	Ori[6] = a_vector_idx_0;
-
-	Ori[1] = t;
-
-	Ori[7] = a_vector_idx_1;
-
-	Ori[2] = n_vector_idx_2;
-
-	Ori[8] = scale;
+	for (i = 0; i < 3; i++) {
+		vrr_tmp = static_cast<int>(a[i]);
+		scale = a[i + 3];
+		absxk = a[i + 6];
+		for (int i1 = 0; i1 < 3; i1++) {
+			Ori2[i + 3 * i1] = (static_cast<double>(vrr_tmp) * vrr[3 * i1] + scale *
+			                                                                 vrr[3 * i1 + 1]) + absxk * vrr[3 * i1 + 2];
+		}
+	}
 }
 
 void Cleaner_Arm_Trajectory_IK(std::array<double, 3> &targ_P, std::array<double, 9> &targ_O,
@@ -1196,26 +1231,24 @@ void Cleaner_Arm_FK(std::array<double, 5> &th, std::array<double, 9> &Ori, std::
 
 }
 
-
 int target_arm(int target_x, int target_y, int target_z) {
 
 	std::array<double, 5> curr_th;
 	std::array<int32_t, 5> curr_DXLs;
 	std::array<double, 3> targ_Pos;
 	std::array<double, 3> targ_Pos_temp;
-	std::array<double, 9> targ_Ori;
+	std::array<double, 9> targ_Ori1;
+	std::array<double, 9> targ_Ori2;
 	std::array<double, 5> path_th;
 	std::array<double, 5> path_DXL;
 
 	int division = 200;
 	int step_time_1;
-	int step_time_2;
 
 	std::array<double, 1000> rest2init;
 	std::array<double, 1000> init2targ_temp;
-	std::array<double, 1000> targ_temp2targ;
-	std::array<double, 1000> targ2init;
-	std::array<double, 1000> init2rest;
+	std::array<double, 1000> targ_temp2tem;
+	std::array<double, 1000> tem2targ;
 	std::array<double, 9> init_Ori;
 	std::array<double, 3> init_Pos;
 	std::array<double, 9> rest_Ori;
@@ -1328,31 +1361,22 @@ int target_arm(int target_x, int target_y, int target_z) {
 	// Wait for Data...........
 
 	Cam_Pos[0] = 26.0;
-	Cam_Pos[1] = -1 * 3.0;
-	Cam_Pos[2] = -1 * 220.0;
+	Cam_Pos[1] = -1 * 5.0;
+	Cam_Pos[2] = -1 * 122.5;
 
-	targ_Pos[0] = (double) target_z + Cam_Pos[0];
+	targ_Pos[0] = (double) target_z + Cam_Pos[0] + 15;
 
-	targ_Pos[1] = ((-1 * ((double) target_x - 424)) * 297 / 327 / 341 * (double) target_z) + Cam_Pos[1];
+	targ_Pos[1] = ((-1 * ((double) target_x - 424)) * 297 / 329 / 341 * (double) target_z) + Cam_Pos[1];
 
-	targ_Pos[2] = ((-1 * ((double) target_y - 240)) * 210 / 234 / 341 * (double) target_z) + Cam_Pos[2];
-
-
-	printf("tar_x:%d", target_x);
-	printf("tar_y:%d", target_y);
-	printf("tar_z:%d", target_z);
-	printf("p0: %lf  ", targ_Pos[0]);
-	printf("p1: %lf  ", targ_Pos[1]);
-	printf("p2: %lf  \n", targ_Pos[2]);
-
+	targ_Pos[2] = ((-1 * ((double) target_y - 240)) * 210 / 237 / 341 * (double) target_z) + Cam_Pos[2];
 
 	// Calculate Desired Orientation
 
-	Cleaner_Arm_Generate_Ori(targ_Pos, targ_Ori);
+	Cleaner_Arm_Generate_Ori(targ_Pos, targ_Ori1, targ_Ori2);
 
-	targ_Pos_temp[0] = targ_Pos[0] - targ_Ori[6] * 30.0f;
-	targ_Pos_temp[1] = targ_Pos[1] - targ_Ori[7] * 30.0f;
-	targ_Pos_temp[2] = targ_Pos[2] - targ_Ori[8] * 30.0f;
+	targ_Pos_temp[0] = targ_Pos[0] - targ_Ori2[6] * 35.0f;
+	targ_Pos_temp[1] = targ_Pos[1] - targ_Ori2[7] * 35.0f;
+	targ_Pos_temp[2] = targ_Pos[2];
 
 	// Torque ON....................................................
 	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL1_ID, ADDR_TORQUE_ENABLE, TORQUE_ENABLE,
@@ -1463,32 +1487,20 @@ int target_arm(int target_x, int target_y, int target_z) {
 	for (int j = 0; j < 5; j++) {
 		curr_th[j] = rest2init[j + (division - 1) * 5];
 	}
-//for (int j = 0; j < 200; j++){
-	//printf("division:%3d  th1:%3d  th2:%3d  th3:%3d  th4:%3d\n",j,(int32_t)std::round(rest2init[j*5 + 0]*2048/M_PI),(int32_t)std::round(rest2init[j*5 + 1]*2048/M_PI),(int32_t)std::round(rest2init[j*5 + 2]*2048/M_PI),(int32_t)std::round(rest2init[j*5 + 3]*2048/M_PI));
-//}
 
-	Cleaner_Arm_Trajectory_IK(targ_Pos_temp, targ_Ori, division, curr_th, init2targ_temp);
+	Cleaner_Arm_Trajectory_IK(targ_Pos_temp, targ_Ori1, division, curr_th, init2targ_temp);
 
 	for (int j = 0; j < 5; j++) {
 		curr_th[j] = init2targ_temp[j + (division - 1) * 5];
 	}
 
-	Cleaner_Arm_Trajectory_IK(targ_Pos, targ_Ori, division, curr_th, targ_temp2targ);
+	Cleaner_Arm_Trajectory_IK(targ_Pos_temp, targ_Ori2, division, curr_th, targ_temp2tem);
 
 	for (int j = 0; j < 5; j++) {
-		curr_th[j] = targ_temp2targ[j + (division - 1) * 5];
+		curr_th[j] = targ_temp2tem[j + (division - 1) * 5];
 	}
 
-	Cleaner_Arm_FK(curr_th, curr_Ori, curr_Pos);
-	Cleaner_Arm_Trajectory_IK(init_Pos, init_Ori, division, curr_th, targ2init);
-	step_time_2 = (int) (std::sqrt(std::pow(curr_Pos[0] - init_Pos[0], 2) + std::pow(curr_Pos[1] - init_Pos[1], 2) +
-	                               std::pow(curr_Pos[2] - init_Pos[2], 2)) * 0.03);
-
-	for (int j = 0; j < 5; j++) {
-		curr_th[j] = targ2init[j + (division - 1) * 5];
-	}
-
-	Cleaner_Arm_Trajectory_IK(rest_Pos, rest_Ori, division, curr_th, init2rest);
+	Cleaner_Arm_Trajectory_IK(targ_Pos, targ_Ori2, division, curr_th, tem2targ);
 
 	int division_count = 0;
 	clock_t start, end;
@@ -1562,7 +1574,7 @@ int target_arm(int target_x, int target_y, int target_z) {
 			//printf("division : %d\n",division_count);
 			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
 		}
-	} while (division_count < 200);
+	} while (division_count < 199); // rest2init  step_time1
 
 	division_count = 0;
 
@@ -1636,16 +1648,17 @@ int target_arm(int target_x, int target_y, int target_z) {
 			//printf("division : %d\n",division_count);
 			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
 		}
-	} while (division_count < 200);
+	} while (division_count < 199); // init2targ_temp  12
 
 	division_count = 0;
+
 	do {
 		start = clock();
 
 		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
 
 		// Add Dynamixel goal position value to the Syncwrite parameter storage
-		int a0 = int(targ_temp2targ[division_count * 5 + 0] * 2048 / M_PI);
+		int a0 = int(targ_temp2tem[division_count * 5 + 0] * 2048 / M_PI);
 		printf("a0: %d  ", a0);
 		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
 		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
@@ -1658,7 +1671,7 @@ int target_arm(int target_x, int target_y, int target_z) {
 			return 0;
 		}
 
-		int a1 = int(targ_temp2targ[division_count * 5 + 1] * 2048 / M_PI);
+		int a1 = int(targ_temp2tem[division_count * 5 + 1] * 2048 / M_PI);
 		printf("a1: %d  ", a1);
 		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
 		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
@@ -1671,7 +1684,7 @@ int target_arm(int target_x, int target_y, int target_z) {
 			return 0;
 		}
 
-		int a2 = int(targ_temp2targ[division_count * 5 + 2] * 2048 / M_PI);
+		int a2 = int(targ_temp2tem[division_count * 5 + 2] * 2048 / M_PI);
 		printf("a2: %d  ", a2);
 
 		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
@@ -1685,7 +1698,837 @@ int target_arm(int target_x, int target_y, int target_z) {
 			return 0;
 		}
 
-		int a3 = int(targ_temp2targ[division_count * 5 + 3] * 2048 / M_PI);
+		int a3 = int(targ_temp2tem[division_count * 5 + 3] * 2048 / M_PI);
+		printf("a3: %d\n", a3);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a3));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a3));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL4_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		dxl_comm_result = groupSyncWrite.txPacket();
+		if (dxl_comm_result != COMM_SUCCESS) printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+		groupSyncWrite.clearParam();
+
+		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
+		division_count = division_count + 1;
+
+		while ((clock() - start) < 8 * 1000) {
+			//printf("division : %d\n",division_count);
+			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
+		}
+	} while (division_count < 199); // targ_temp2tem  8
+
+	division_count = 0;
+
+	do {
+		start = clock();
+
+		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
+
+		// Add Dynamixel goal position value to the Syncwrite parameter storage
+		int a0 = int(tem2targ[division_count * 5 + 0] * 2048 / M_PI);
+		printf("a0: %d  ", a0);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a0));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a0));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL1_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a1 = int(tem2targ[division_count * 5 + 1] * 2048 / M_PI);
+		printf("a1: %d  ", a1);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a1));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a1));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL2_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		int a2 = int(tem2targ[division_count * 5 + 2] * 2048 / M_PI);
+		printf("a2: %d  ", a2);
+
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a2));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a2));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a2));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL3_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a3 = int(tem2targ[division_count * 5 + 3] * 2048 / M_PI);
+		printf("a3: %d\n", a3);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a3));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a3));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL4_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		dxl_comm_result = groupSyncWrite.txPacket();
+		if (dxl_comm_result != COMM_SUCCESS) printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+		groupSyncWrite.clearParam();
+
+		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
+		division_count = division_count + 1;
+
+		while ((clock() - start) < 8 * 1000) {
+			//printf("division : %d\n",division_count);
+			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
+		}
+	} while (division_count < 199); // tem2targ  8
+
+	division_count = division - 1;
+
+	do {
+		start = clock();
+
+		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
+
+		// Add Dynamixel goal position value to the Syncwrite parameter storage
+		int a0 = int(tem2targ[division_count * 5 + 0] * 2048 / M_PI);
+		printf("a0: %d  ", a0);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a0));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a0));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL1_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a1 = int(tem2targ[division_count * 5 + 1] * 2048 / M_PI);
+		printf("a1: %d  ", a1);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a1));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a1));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL2_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		int a2 = int(tem2targ[division_count * 5 + 2] * 2048 / M_PI);
+		printf("a2: %d  ", a2);
+
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a2));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a2));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a2));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL3_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a3 = int(tem2targ[division_count * 5 + 3] * 2048 / M_PI);
+		printf("a3: %d\n", a3);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a3));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a3));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL4_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		dxl_comm_result = groupSyncWrite.txPacket();
+		if (dxl_comm_result != COMM_SUCCESS) printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+		groupSyncWrite.clearParam();
+
+		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
+		division_count = division_count - 1;
+
+		while ((clock() - start) < 8 * 1000) {}
+	} while (division_count > 0); // tem2targ   _rev  8
+
+	division_count = division - 1;
+
+	do {
+		start = clock();
+
+		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
+
+		// Add Dynamixel goal position value to the Syncwrite parameter storage
+		int a0 = int(targ_temp2tem[division_count * 5 + 0] * 2048 / M_PI);
+		printf("a0: %d  ", a0);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a0));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a0));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL1_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a1 = int(targ_temp2tem[division_count * 5 + 1] * 2048 / M_PI);
+		printf("a1: %d  ", a1);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a1));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a1));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL2_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		int a2 = int(targ_temp2tem[division_count * 5 + 2] * 2048 / M_PI);
+		printf("a2: %d  ", a2);
+
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a2));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a2));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a2));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL3_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a3 = int(targ_temp2tem[division_count * 5 + 3] * 2048 / M_PI);
+		printf("a3: %d\n", a3);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a3));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a3));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL4_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		dxl_comm_result = groupSyncWrite.txPacket();
+		if (dxl_comm_result != COMM_SUCCESS) printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+		groupSyncWrite.clearParam();
+
+		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
+		division_count = division_count - 1;
+
+		while ((clock() - start) < 8 * 1000) {
+			//printf("division : %d\n",division_count);
+			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
+		}
+	} while (division_count > 0); // targ_temp2tem   _rev  8
+
+	division_count = division - 1;
+
+	do {
+		start = clock();
+
+		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
+
+		// Add Dynamixel goal position value to the Syncwrite parameter storage
+		int a0 = int(init2targ_temp[division_count * 5 + 0] * 2048 / M_PI);
+		printf("a0: %d  ", a0);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a0));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a0));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL1_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a1 = int(init2targ_temp[division_count * 5 + 1] * 2048 / M_PI);
+		printf("a1: %d  ", a1);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a1));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a1));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL2_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		int a2 = int(init2targ_temp[division_count * 5 + 2] * 2048 / M_PI);
+		printf("a2: %d  ", a2);
+
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a2));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a2));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a2));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL3_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a3 = int(init2targ_temp[division_count * 5 + 3] * 2048 / M_PI);
+		printf("a3: %d\n", a3);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a3));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a3));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL4_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		dxl_comm_result = groupSyncWrite.txPacket();
+		if (dxl_comm_result != COMM_SUCCESS) printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+		groupSyncWrite.clearParam();
+
+		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
+		division_count = division_count - 1;
+
+		while ((clock() - start) < 12 * 1000) {
+			//printf("division : %d\n",division_count);
+			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
+		}
+	} while (division_count > 0); // init2targ_temp   _rev  12
+
+	division_count = division - 1;
+
+	do {
+		start = clock();
+
+		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
+
+		// Add Dynamixel goal position value to the Syncwrite parameter storage
+		int a0 = int(rest2init[division_count * 5 + 0] * 2048 / M_PI);
+		//printf("a0: %d  ",a0);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a0));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a0));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL1_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a1 = int(rest2init[division_count * 5 + 1] * 2048 / M_PI);
+		//printf("a1: %d  ",a1);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a1));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a1));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL2_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		int a2 = int(rest2init[division_count * 5 + 2] * 2048 / M_PI);
+		//printf("a2: %d  ",a2);
+
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a2));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a2));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a2));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL3_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a3 = int(rest2init[division_count * 5 + 3] * 2048 / M_PI);
+		//printf("a3: %d\n",a3);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a3));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a3));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL4_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		dxl_comm_result = groupSyncWrite.txPacket();
+		if (dxl_comm_result != COMM_SUCCESS) printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+		groupSyncWrite.clearParam();
+
+		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
+		division_count = division_count - 1;
+
+		while ((clock() - start) < step_time_1 * 1000) {
+			//printf("division : %d\n",division_count);
+			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
+		}
+	} while (division_count >= 0); // rest2init   _rev  step_time1
+
+
+// Disable Dynamixel Torque
+
+	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL1_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE,
+	                                                &dxl_error);
+	if (dxl_comm_result != COMM_SUCCESS) {
+		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+	} else if (dxl_error != 0) {
+		printf("%s\n", packetHandler->getRxPacketError(dxl_error));
+	}
+
+	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL2_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE,
+	                                                &dxl_error);
+
+	if (dxl_comm_result != COMM_SUCCESS) {
+		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+	} else if (dxl_error != 0) {
+		printf("%s\n", packetHandler->getRxPacketError(dxl_error));
+	}
+
+	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL3_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE,
+	                                                &dxl_error);
+
+	if (dxl_comm_result != COMM_SUCCESS) {
+		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+	} else if (dxl_error != 0) {
+		printf("%s\n", packetHandler->getRxPacketError(dxl_error));
+	}
+
+	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL4_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE,
+	                                                &dxl_error);
+
+	if (dxl_comm_result != COMM_SUCCESS) {
+		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+	} else if (dxl_error != 0) {
+		printf("%s\n", packetHandler->getRxPacketError(dxl_error));
+	}
+
+	// Close port
+	portHandler->closePort();
+
+	return 1;
+}
+
+int target_arm_coordinate(double target_x, double target_y, double target_z) {
+
+	std::array<double, 5> curr_th;
+	std::array<int32_t, 5> curr_DXLs;
+	std::array<double, 3> targ_Pos;
+	std::array<double, 3> targ_Pos_temp;
+	std::array<double, 9> targ_Ori1;
+	std::array<double, 9> targ_Ori2;
+	std::array<double, 5> path_th;
+	std::array<double, 5> path_DXL;
+
+	int division = 200;
+	int step_time_1;
+
+	std::array<double, 1000> rest2init;
+	std::array<double, 1000> init2targ_temp;
+	std::array<double, 1000> targ_temp2tem;
+	std::array<double, 1000> tem2targ;
+	std::array<double, 9> init_Ori;
+	std::array<double, 3> init_Pos;
+	std::array<double, 9> rest_Ori;
+	std::array<double, 3> rest_Pos;
+	std::array<double, 9> curr_Ori;
+	std::array<double, 3> curr_Pos;
+	std::array<double, 3> Cam_Pos;
+
+	rest_Pos[0] = 1.299351466271795e+02;
+	rest_Pos[1] = 0;
+	rest_Pos[2] = 43.862349263583056;
+
+
+	rest_Ori[0] = 0.428941292055329;
+	rest_Ori[1] = 0;
+	rest_Ori[2] = 0.903332368494512;
+	rest_Ori[3] = 0;
+	rest_Ori[4] = -1;
+	rest_Ori[5] = 0;
+	rest_Ori[6] = 0.903332368494512;
+	rest_Ori[7] = 0;
+	rest_Ori[8] = -0.428941292055329;
+
+	init_Ori[0] = 0;
+	init_Ori[1] = 0;
+	init_Ori[2] = 1;
+	init_Ori[3] = 0;
+	init_Ori[4] = -1;
+	init_Ori[5] = 0;
+	init_Ori[6] = 1;
+	init_Ori[7] = 0;
+	init_Ori[8] = 0;
+
+	init_Pos[0] = 1.574821624671411e+02;
+	init_Pos[1] = 8.394366312178620e-15;
+	init_Pos[2] = 2.244095945374110e+02;
+
+	// Initialize PortHandler instance
+	// Set the port path
+	// Get methods and members of PortHandlerLinux or PortHandlerWindows
+	dynamixel::PortHandler *portHandler = dynamixel::PortHandler::getPortHandler(DEVICENAME);
+
+	// Initialize PacketHandler instance
+	// Set the protocol version
+	// Get methods and members of Protocol1PacketHandler or Protocol2PacketHandler
+	dynamixel::PacketHandler *packetHandler = dynamixel::PacketHandler::getPacketHandler(PROTOCOL_VERSION);
+
+	// Initialize GroupSyncWrite instance
+	dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
+
+	// Initialize Groupsyncread instance for Present Position
+	dynamixel::GroupSyncRead groupSyncRead(portHandler, packetHandler, ADDR_PRESENT_POSITION, LEN_PRO_PRESENT_POSITION);
+
+	int dxl_comm_result = COMM_TX_FAIL;             // Communication result
+	bool dxl_addparam_result = false;                 // addParam result
+	bool dxl_getdata_result = false;                  // GetParam result
+
+	uint8_t dxl_error = 0;                          // Dynamixel error
+	uint8_t param_goal_position[4];
+	int32_t dxl1_present_position = 0;               // Present position
+	int32_t dxl2_present_position = 0;               // Present position
+	int32_t dxl3_present_position = 0;               // Present position
+	int32_t dxl4_present_position = 0;               // Present position
+
+	// Open port
+	if (portHandler->openPort()) {
+		printf("Succeeded to open the port!\n");
+	} else {
+		printf("Failed to open the port!\n");
+		printf("Press any key to terminate...\n");
+		getch();
+		return 0;
+	}
+
+	// Set port baudrate
+	if (portHandler->setBaudRate(BAUDRATE)) {
+		printf("Succeeded to change the baudrate!\n");
+	} else {
+		printf("Failed to change the baudrate!\n");
+		printf("Press any key to terminate...\n");
+		getch();
+		return 0;
+	}
+
+	// Add parameter storage for Dynamixel#1 present position value
+	dxl_addparam_result = groupSyncRead.addParam(DXL1_ID);
+	if (dxl_addparam_result != true) {
+		fprintf(stderr, "[ID:%03d] groupSyncRead addparam failed", DXL1_ID);
+		return 0;
+	}
+
+	dxl_addparam_result = groupSyncRead.addParam(DXL2_ID);
+	if (dxl_addparam_result != true) {
+		fprintf(stderr, "[ID:%03d] groupSyncRead addparam failed", DXL2_ID);
+		return 0;
+	}
+
+	dxl_addparam_result = groupSyncRead.addParam(DXL3_ID);
+	if (dxl_addparam_result != true) {
+		fprintf(stderr, "[ID:%03d] groupSyncRead addparam failed", DXL3_ID);
+		return 0;
+	}
+
+	dxl_addparam_result = groupSyncRead.addParam(DXL4_ID);
+	if (dxl_addparam_result != true) {
+		fprintf(stderr, "[ID:%03d] groupSyncRead addparam failed", DXL4_ID);
+		return 0;
+	}
+
+	// Wait for Data...........
+
+	Cam_Pos[0] = 26.0;
+	Cam_Pos[1] = -1 * 5.0;
+	Cam_Pos[2] = -1 * 138.0;
+
+	auto target_z_r = target_z * 0.95;
+
+	targ_Pos[0] = target_x + Cam_Pos[0] + 10.0;
+	targ_Pos[1] = target_y + Cam_Pos[1];
+	targ_Pos[2] = target_z + Cam_Pos[2];
+
+	// Calculate Desired Orientation
+
+	Cleaner_Arm_Generate_Ori(targ_Pos, targ_Ori1, targ_Ori2);
+
+	targ_Pos_temp[0] = targ_Pos[0] - targ_Ori2[6] * 35.0f;
+	targ_Pos_temp[1] = targ_Pos[1] - targ_Ori2[7] * 35.0f;
+	targ_Pos_temp[2] = targ_Pos[2];
+
+	// Torque ON....................................................
+	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL1_ID, ADDR_TORQUE_ENABLE, TORQUE_ENABLE,
+	                                                &dxl_error);
+	if (dxl_comm_result != COMM_SUCCESS) {
+		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+	} else if (dxl_error != 0) {
+		printf("%s\n", packetHandler->getRxPacketError(dxl_error));
+	} else {
+		printf("Dynamixel has been successfully connected \n");
+	}
+	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL2_ID, ADDR_TORQUE_ENABLE, TORQUE_ENABLE,
+	                                                &dxl_error);
+	if (dxl_comm_result != COMM_SUCCESS) {
+		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+	} else if (dxl_error != 0) {
+		printf("%s\n", packetHandler->getRxPacketError(dxl_error));
+	} else {
+		printf("Dynamixel has been successfully connected \n");
+	}
+	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL3_ID, ADDR_TORQUE_ENABLE, TORQUE_ENABLE,
+	                                                &dxl_error);
+	if (dxl_comm_result != COMM_SUCCESS) {
+		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+	} else if (dxl_error != 0) {
+		printf("%s\n", packetHandler->getRxPacketError(dxl_error));
+	} else {
+		printf("Dynamixel has been successfully connected \n");
+	}
+	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL4_ID, ADDR_TORQUE_ENABLE, TORQUE_ENABLE,
+	                                                &dxl_error);
+	if (dxl_comm_result != COMM_SUCCESS) {
+		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+	} else if (dxl_error != 0) {
+		printf("%s\n", packetHandler->getRxPacketError(dxl_error));
+	} else {
+		printf("Dynamixel has been successfully connected \n");
+	}
+	// Torque ON.................................................
+
+	// Group_Read()..............................................
+
+	dxl_comm_result = groupSyncRead.txRxPacket();
+	if (dxl_comm_result != COMM_SUCCESS) {
+		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+	} else if (groupSyncRead.getError(DXL1_ID, &dxl_error)) {
+		printf("[ID:%03d] %s\n", DXL1_ID, packetHandler->getRxPacketError(dxl_error));
+	} else if (groupSyncRead.getError(DXL2_ID, &dxl_error)) {
+		printf("[ID:%03d] %s\n", DXL2_ID, packetHandler->getRxPacketError(dxl_error));
+	} else if (groupSyncRead.getError(DXL3_ID, &dxl_error)) {
+		printf("[ID:%03d] %s\n", DXL3_ID, packetHandler->getRxPacketError(dxl_error));
+	} else if (groupSyncRead.getError(DXL4_ID, &dxl_error)) {
+		printf("[ID:%03d] %s\n", DXL4_ID, packetHandler->getRxPacketError(dxl_error));
+	}
+
+// Check if groupsyncread data of Dynamixel is available
+	dxl_getdata_result = groupSyncRead.isAvailable(DXL1_ID, ADDR_PRESENT_POSITION, LEN_PRO_PRESENT_POSITION);
+	if (dxl_getdata_result != true) {
+		fprintf(stderr, "[ID:%03d] groupSyncRead getdata failed", DXL1_ID);
+		return 0;
+	}
+
+	dxl_getdata_result = groupSyncRead.isAvailable(DXL2_ID, ADDR_PRESENT_POSITION, LEN_PRO_PRESENT_POSITION);
+	if (dxl_getdata_result != true) {
+		fprintf(stderr, "[ID:%03d] groupSyncRead getdata failed", DXL2_ID);
+		return 0;
+	}
+
+	dxl_getdata_result = groupSyncRead.isAvailable(DXL3_ID, ADDR_PRESENT_POSITION, LEN_PRO_PRESENT_POSITION);
+	if (dxl_getdata_result != true) {
+		fprintf(stderr, "[ID:%03d] groupSyncRead getdata failed", DXL3_ID);
+		return 0;
+	}
+
+	dxl_getdata_result = groupSyncRead.isAvailable(DXL4_ID, ADDR_PRESENT_POSITION, LEN_PRO_PRESENT_POSITION);
+	if (dxl_getdata_result != true) {
+		fprintf(stderr, "[ID:%03d] groupSyncRead getdata failed", DXL4_ID);
+		return 0;
+	}
+
+// Get Dynamixel present position value
+	dxl1_present_position = groupSyncRead.getData(DXL1_ID, ADDR_PRESENT_POSITION, LEN_PRO_PRESENT_POSITION);
+
+	dxl2_present_position = groupSyncRead.getData(DXL2_ID, ADDR_PRESENT_POSITION, LEN_PRO_PRESENT_POSITION);
+
+	dxl3_present_position = groupSyncRead.getData(DXL3_ID, ADDR_PRESENT_POSITION, LEN_PRO_PRESENT_POSITION);
+
+	dxl4_present_position = groupSyncRead.getData(DXL4_ID, ADDR_PRESENT_POSITION, LEN_PRO_PRESENT_POSITION);
+
+	curr_th[0] = dxl1_present_position * M_PI / 2048;
+
+	curr_th[1] = dxl2_present_position * M_PI / 2048;
+
+	curr_th[2] = dxl3_present_position * M_PI / 2048;
+
+	curr_th[3] = dxl4_present_position * M_PI / 2048;
+
+	printf("t1:%3f  t2:%3f  t3:%3f  t4:%3f\n", curr_th[0], curr_th[1], curr_th[2], curr_th[3]);
+
+	curr_th[4] = 0;
+
+	division = 200;
+	Cleaner_Arm_FK(curr_th, curr_Ori, curr_Pos);
+	Cleaner_Arm_Trajectory_IK(init_Pos, init_Ori, division, curr_th, rest2init);
+	step_time_1 = (int) (std::sqrt(std::pow(curr_Pos[0] - init_Pos[0], 2) + std::pow(curr_Pos[1] - init_Pos[1], 2) +
+	                               std::pow(curr_Pos[2] - init_Pos[2], 2)) * 0.03);
+
+	for (int j = 0; j < 5; j++) {
+		curr_th[j] = rest2init[j + (division - 1) * 5];
+	}
+
+	Cleaner_Arm_Trajectory_IK(targ_Pos_temp, targ_Ori1, division, curr_th, init2targ_temp);
+
+	for (int j = 0; j < 5; j++) {
+		curr_th[j] = init2targ_temp[j + (division - 1) * 5];
+	}
+
+	Cleaner_Arm_Trajectory_IK(targ_Pos_temp, targ_Ori2, division, curr_th, targ_temp2tem);
+
+	for (int j = 0; j < 5; j++) {
+		curr_th[j] = targ_temp2tem[j + (division - 1) * 5];
+	}
+
+	Cleaner_Arm_Trajectory_IK(targ_Pos, targ_Ori2, division, curr_th, tem2targ);
+
+	int division_count = 0;
+	clock_t start, end;
+	do {
+		start = clock();
+
+		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
+
+		// Add Dynamixel goal position value to the Syncwrite parameter storage
+		int a0 = int(rest2init[division_count * 5 + 0] * 2048 / M_PI);
+		//printf("a0: %d  ",a0);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a0));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a0));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL1_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a1 = int(rest2init[division_count * 5 + 1] * 2048 / M_PI);
+		//printf("a1: %d  ",a1);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a1));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a1));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL2_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		int a2 = int(rest2init[division_count * 5 + 2] * 2048 / M_PI);
+		//printf("a2: %d  ",a2);
+
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a2));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a2));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a2));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL3_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a3 = int(rest2init[division_count * 5 + 3] * 2048 / M_PI);
+		//printf("a3: %d\n",a3);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a3));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a3));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL4_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		dxl_comm_result = groupSyncWrite.txPacket();
+		if (dxl_comm_result != COMM_SUCCESS) printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+		groupSyncWrite.clearParam();
+
+		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
+		division_count = division_count + 1;
+
+		while ((clock() - start) < step_time_1 * 1000) {
+			//printf("division : %d\n",division_count);
+			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
+		}
+	} while (division_count < 199); // rest2init  step_time1
+
+	division_count = 0;
+
+	do {
+		start = clock();
+
+		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
+
+		// Add Dynamixel goal position value to the Syncwrite parameter storage
+		int a0 = int(init2targ_temp[division_count * 5 + 0] * 2048 / M_PI);
+		printf("a0: %d  ", a0);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a0));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a0));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL1_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a1 = int(init2targ_temp[division_count * 5 + 1] * 2048 / M_PI);
+		printf("a1: %d  ", a1);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a1));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a1));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL2_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		int a2 = int(init2targ_temp[division_count * 5 + 2] * 2048 / M_PI);
+		printf("a2: %d  ", a2);
+
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a2));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a2));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a2));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL3_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a3 = int(init2targ_temp[division_count * 5 + 3] * 2048 / M_PI);
 		printf("a3: %d\n", a3);
 		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
 		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
@@ -1709,16 +2552,17 @@ int target_arm(int target_x, int target_y, int target_z) {
 			//printf("division : %d\n",division_count);
 			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
 		}
-	} while (division_count < 200);
+	} while (division_count < 199); // init2targ_temp  12
 
 	division_count = 0;
+
 	do {
 		start = clock();
 
 		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
 
 		// Add Dynamixel goal position value to the Syncwrite parameter storage
-		int a0 = int(targ2init[division_count * 5 + 0] * 2048 / M_PI);
+		int a0 = int(targ_temp2tem[division_count * 5 + 0] * 2048 / M_PI);
 		printf("a0: %d  ", a0);
 		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
 		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
@@ -1731,7 +2575,7 @@ int target_arm(int target_x, int target_y, int target_z) {
 			return 0;
 		}
 
-		int a1 = int(targ2init[division_count * 5 + 1] * 2048 / M_PI);
+		int a1 = int(targ_temp2tem[division_count * 5 + 1] * 2048 / M_PI);
 		printf("a1: %d  ", a1);
 		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
 		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
@@ -1744,7 +2588,7 @@ int target_arm(int target_x, int target_y, int target_z) {
 			return 0;
 		}
 
-		int a2 = int(targ2init[division_count * 5 + 2] * 2048 / M_PI);
+		int a2 = int(targ_temp2tem[division_count * 5 + 2] * 2048 / M_PI);
 		printf("a2: %d  ", a2);
 
 		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
@@ -1758,7 +2602,7 @@ int target_arm(int target_x, int target_y, int target_z) {
 			return 0;
 		}
 
-		int a3 = int(targ2init[division_count * 5 + 3] * 2048 / M_PI);
+		int a3 = int(targ_temp2tem[division_count * 5 + 3] * 2048 / M_PI);
 		printf("a3: %d\n", a3);
 		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
 		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
@@ -1778,11 +2622,11 @@ int target_arm(int target_x, int target_y, int target_z) {
 		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
 		division_count = division_count + 1;
 
-		while ((clock() - start) < step_time_2 * 1000) {
+		while ((clock() - start) < 8 * 1000) {
 			//printf("division : %d\n",division_count);
 			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
 		}
-	} while (division_count < 200);
+	} while (division_count < 199); // targ_temp2tem  8
 
 	division_count = 0;
 
@@ -1792,7 +2636,7 @@ int target_arm(int target_x, int target_y, int target_z) {
 		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
 
 		// Add Dynamixel goal position value to the Syncwrite parameter storage
-		int a0 = int(init2rest[division_count * 5 + 0] * 2048 / M_PI);
+		int a0 = int(tem2targ[division_count * 5 + 0] * 2048 / M_PI);
 		printf("a0: %d  ", a0);
 		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
 		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
@@ -1805,7 +2649,7 @@ int target_arm(int target_x, int target_y, int target_z) {
 			return 0;
 		}
 
-		int a1 = int(init2rest[division_count * 5 + 1] * 2048 / M_PI);
+		int a1 = int(tem2targ[division_count * 5 + 1] * 2048 / M_PI);
 		printf("a1: %d  ", a1);
 		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
 		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
@@ -1818,7 +2662,7 @@ int target_arm(int target_x, int target_y, int target_z) {
 			return 0;
 		}
 
-		int a2 = int(init2rest[division_count * 5 + 2] * 2048 / M_PI);
+		int a2 = int(tem2targ[division_count * 5 + 2] * 2048 / M_PI);
 		printf("a2: %d  ", a2);
 
 		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
@@ -1832,7 +2676,7 @@ int target_arm(int target_x, int target_y, int target_z) {
 			return 0;
 		}
 
-		int a3 = int(init2rest[division_count * 5 + 3] * 2048 / M_PI);
+		int a3 = int(tem2targ[division_count * 5 + 3] * 2048 / M_PI);
 		printf("a3: %d\n", a3);
 		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
 		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
@@ -1852,65 +2696,342 @@ int target_arm(int target_x, int target_y, int target_z) {
 		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
 		division_count = division_count + 1;
 
-		while ((clock() - start) < 7 * 1000) {
+		while ((clock() - start) < 8 * 1000) {
 			//printf("division : %d\n",division_count);
 			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
 		}
-	} while (division_count < 200);
+	} while (division_count < 199); // tem2targ  8
+
+	division_count = division - 1;
+
+	do {
+		start = clock();
+
+		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
+
+		// Add Dynamixel goal position value to the Syncwrite parameter storage
+		int a0 = int(tem2targ[division_count * 5 + 0] * 2048 / M_PI);
+		printf("a0: %d  ", a0);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a0));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a0));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL1_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a1 = int(tem2targ[division_count * 5 + 1] * 2048 / M_PI);
+		printf("a1: %d  ", a1);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a1));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a1));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL2_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		int a2 = int(tem2targ[division_count * 5 + 2] * 2048 / M_PI);
+		printf("a2: %d  ", a2);
+
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a2));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a2));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a2));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL3_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a3 = int(tem2targ[division_count * 5 + 3] * 2048 / M_PI);
+		printf("a3: %d\n", a3);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a3));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a3));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL4_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		dxl_comm_result = groupSyncWrite.txPacket();
+		if (dxl_comm_result != COMM_SUCCESS) printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+		groupSyncWrite.clearParam();
+
+		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
+		division_count = division_count - 1;
+
+		while ((clock() - start) < 8 * 1000) {}
+	} while (division_count > 0); // tem2targ   _rev  8
+
+	division_count = division - 1;
+
+	do {
+		start = clock();
+
+		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
+
+		// Add Dynamixel goal position value to the Syncwrite parameter storage
+		int a0 = int(targ_temp2tem[division_count * 5 + 0] * 2048 / M_PI);
+		printf("a0: %d  ", a0);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a0));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a0));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL1_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a1 = int(targ_temp2tem[division_count * 5 + 1] * 2048 / M_PI);
+		printf("a1: %d  ", a1);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a1));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a1));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL2_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		int a2 = int(targ_temp2tem[division_count * 5 + 2] * 2048 / M_PI);
+		printf("a2: %d  ", a2);
+
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a2));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a2));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a2));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL3_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a3 = int(targ_temp2tem[division_count * 5 + 3] * 2048 / M_PI);
+		printf("a3: %d\n", a3);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a3));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a3));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL4_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		dxl_comm_result = groupSyncWrite.txPacket();
+		if (dxl_comm_result != COMM_SUCCESS) printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+		groupSyncWrite.clearParam();
+
+		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
+		division_count = division_count - 1;
+
+		while ((clock() - start) < 8 * 1000) {
+			//printf("division : %d\n",division_count);
+			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
+		}
+	} while (division_count > 0); // targ_temp2tem   _rev  8
+
+	division_count = division - 1;
+
+	do {
+		start = clock();
+
+		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
+
+		// Add Dynamixel goal position value to the Syncwrite parameter storage
+		int a0 = int(init2targ_temp[division_count * 5 + 0] * 2048 / M_PI);
+		printf("a0: %d  ", a0);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a0));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a0));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL1_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a1 = int(init2targ_temp[division_count * 5 + 1] * 2048 / M_PI);
+		printf("a1: %d  ", a1);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a1));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a1));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL2_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		int a2 = int(init2targ_temp[division_count * 5 + 2] * 2048 / M_PI);
+		printf("a2: %d  ", a2);
+
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a2));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a2));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a2));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL3_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a3 = int(init2targ_temp[division_count * 5 + 3] * 2048 / M_PI);
+		printf("a3: %d\n", a3);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a3));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a3));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL4_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		dxl_comm_result = groupSyncWrite.txPacket();
+		if (dxl_comm_result != COMM_SUCCESS) printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+		groupSyncWrite.clearParam();
+
+		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
+		division_count = division_count - 1;
+
+		while ((clock() - start) < 12 * 1000) {
+			//printf("division : %d\n",division_count);
+			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
+		}
+	} while (division_count > 0); // init2targ_temp   _rev  12
+
+	division_count = division - 1;
+
+	do {
+		start = clock();
+
+		dynamixel::GroupSyncWrite groupSyncWrite(portHandler, packetHandler, ADDR_GOAL_POSITION, LEN_PRO_GOAL_POSITION);
+
+		// Add Dynamixel goal position value to the Syncwrite parameter storage
+		int a0 = int(rest2init[division_count * 5 + 0] * 2048 / M_PI);
+		//printf("a0: %d  ",a0);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a0));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a0));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a0));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a0));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL1_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a1 = int(rest2init[division_count * 5 + 1] * 2048 / M_PI);
+		//printf("a1: %d  ",a1);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a1));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a1));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a1));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a1));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL2_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		int a2 = int(rest2init[division_count * 5 + 2] * 2048 / M_PI);
+		//printf("a2: %d  ",a2);
+
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a2));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a2));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a2));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a2));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL3_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL1_ID);
+			return 0;
+		}
+
+		int a3 = int(rest2init[division_count * 5 + 3] * 2048 / M_PI);
+		//printf("a3: %d\n",a3);
+		param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(a3));
+		param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(a3));
+		param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(a3));
+		param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(a3));
+
+		dxl_addparam_result = groupSyncWrite.addParam(DXL4_ID, param_goal_position);
+		if (dxl_addparam_result != true) {
+			fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", DXL2_ID);
+			return 0;
+		}
+
+		dxl_comm_result = groupSyncWrite.txPacket();
+		if (dxl_comm_result != COMM_SUCCESS) printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
+		groupSyncWrite.clearParam();
+
+		//printf("t1:%3d  t2:%3d  t3:%3d  t4:%3d\n", (int)(int32_t)std::round(rest2init[division_count*5 + 0]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 1]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 2]*2048/M_PI),(int)(int32_t)std::round(rest2init[division_count*5 + 3]*2048/M_PI));
+		division_count = division_count - 1;
+
+		while ((clock() - start) < step_time_1 * 1000) {
+			//printf("division : %d\n",division_count);
+			//printf("time:%3f\n",(clock() - start)/CLOCKS_PER_SEC);
+		}
+	} while (division_count >= 0); // rest2init   _rev  step_time1
+
+
 // Disable Dynamixel Torque
 
 	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL1_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE,
 	                                                &dxl_error);
-
 	if (dxl_comm_result != COMM_SUCCESS) {
-
 		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
-
 	} else if (dxl_error != 0) {
-
 		printf("%s\n", packetHandler->getRxPacketError(dxl_error));
-
 	}
 
 	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL2_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE,
 	                                                &dxl_error);
 
 	if (dxl_comm_result != COMM_SUCCESS) {
-
 		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
-
 	} else if (dxl_error != 0) {
-
 		printf("%s\n", packetHandler->getRxPacketError(dxl_error));
-
 	}
 
 	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL3_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE,
 	                                                &dxl_error);
 
 	if (dxl_comm_result != COMM_SUCCESS) {
-
 		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
-
 	} else if (dxl_error != 0) {
-
 		printf("%s\n", packetHandler->getRxPacketError(dxl_error));
-
 	}
 
 	dxl_comm_result = packetHandler->write1ByteTxRx(portHandler, DXL4_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE,
 	                                                &dxl_error);
 
 	if (dxl_comm_result != COMM_SUCCESS) {
-
 		printf("%s\n", packetHandler->getTxRxResult(dxl_comm_result));
-
 	} else if (dxl_error != 0) {
-
 		printf("%s\n", packetHandler->getRxPacketError(dxl_error));
-
 	}
-
 
 	// Close port
 	portHandler->closePort();
@@ -1918,12 +3039,10 @@ int target_arm(int target_x, int target_y, int target_z) {
 	return 1;
 }
 
-
 int a = 0;
 int receive_x = 0;
 int receive_y = 0;
 int receive_z = 0;
-
 
 std::vector<std::string> split(const std::string &input, char delimiter) {
 	std::vector<std::string> answer;
@@ -1951,17 +3070,18 @@ public:
 private:
 	rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_btn;
 
-	void callback_button(const std_msgs::msg::String::SharedPtr msg) const {
+	void callback_button(const std_msgs::msg::String::SharedPtr msg) const
+	{
 		auto result = msg->data;
 
 		auto result_split = split(result, ',');
-		int center_x = std::stoi(result_split[0]);
-		int center_y = std::stoi(result_split[1]);
-		int depth = std::stoi(result_split[2]);
+		auto center_x = std::stof(result_split[0]);
+		auto center_y = std::stof(result_split[1]);
+		auto center_z = std::stof(result_split[2]);
 
-		auto a = target_arm(center_x, center_y, int(depth));                                     // CHANGE
-		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Incoming Target\na: %d" " b: %d" " c: %d",   // CHANGE
-		            center_x, center_y, depth);
+		auto a = target_arm_coordinate(center_x, center_y, center_z);                                // CHANGE
+		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Incoming Target\na: %.3f" " b: %.3f" " c: %.3f",   // CHANGE
+		            center_x, center_y, center_z);
 		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "sending back response: [%s]", result.c_str());
 	};
 };

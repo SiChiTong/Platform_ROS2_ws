@@ -295,7 +295,8 @@ void LaserscanMerger::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr 
 			clouds_modified[0] = false;
 
 			for (int i = 1; i < clouds_modified.size(); ++i) {
-				pcl::concatenatePointCloud(merged_cloud, clouds[i], merged_cloud);
+				pcl::concatenate(merged_cloud, clouds[i], merged_cloud);
+				// pcl::concatenatePointCloud(merged_cloud, clouds[i], merged_cloud);
 				clouds_modified[i] = false;
 			}
 

@@ -36,13 +36,13 @@ platform_control_prefix = get_package_share_directory('platform_control')
 map_file = "map.yaml"
 nav_to_pose_bt_xml_file = "nav_platform.xml"
 param_file_name = 'nav2_platform.yaml'
-# nav_through_poses_bt_xml_file = "clean_test.xml"
+# param_file_name = 'nav2_test.yaml'
 robot_name = "robot_base"
 
 def generate_launch_description():
 
     map_dir = LaunchConfiguration('map_file',
-                                  default=os.path.join(platform_control_prefix, 'map', map_file))
+                                  default=os.path.join(package_prefix, 'map', map_file))
 
     param_dir = LaunchConfiguration('params_file',
                                     default=os.path.join(package_prefix,'config',param_file_name))
@@ -67,8 +67,9 @@ def generate_launch_description():
         }.items(),
     )
 
-    visualization_bbox = LaunchConfiguration('visualization_bbox', default=True)
     visualization_map = LaunchConfiguration('visualization_map', default=False)
+    visualization_bbox = LaunchConfiguration('visualization_bbox', default=True)
+    verbose = LaunchConfiguration('verbose', default=False)
 
     gui_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -78,6 +79,7 @@ def generate_launch_description():
             'robot_base': robot_name,
             'visualization_map': visualization_map,
             'visualization_bbox': visualization_bbox,
+            'verbose': verbose,
         }.items()
     )
 

@@ -5,9 +5,8 @@
   Note that the msgs available through this plugin is the ones that are stored
   on your machine, not on the ROS core your rqt instance connects to.
   </description>
-  <maintainer email="dthomas@osrfoundation.org">Dirk Thomas</maintainer>
-  <maintainer email="ablasdel@gmail.com">Aaron Blasdel</maintainer>
-  <maintainer email="mikeblautman@gmail.com">Michael Lautman</maintainer>
+
+  <maintainer email="audrow@openrobotics.org">Audrow Nash</maintainer>
 
   <license>BSD</license>
 
@@ -16,6 +15,8 @@
   <url type="bugtracker">https://github.com/ros-visualization/rqt_msg/issues</url>
 
   <author>Aaron Blasdel</author>
+  <author email="dthomas@osrfoundation.org">Dirk Thomas</author>
+  <author email="mikeblautman@gmail.com">Michael Lautman</author>
 
   <exec_depend>python3-catkin-pkg-modules</exec_depend>
   <exec_depend version_gte="0.2.19">python_qt_binding</exec_depend>

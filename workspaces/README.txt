@@ -57,8 +57,8 @@ rosdep update
 # QT development library
 sudo apt-get install qtquickcontrols2-5-dev qtscript5-dev libqt5serialport5-dev qml-module-qtquick-controls2
 
-# (optional) install open3d
-python3 -m pip install open3d
+
+python3 -m pip install open3d cupoch
 
 #################################### ROS2 빌드 전 주의사항 ####################################
 
@@ -188,6 +188,10 @@ export CYCLONEDDS_URI='<CycloneDDS><Domain><General><NetworkInterfaceAddress>enp
 # 참고 : 현재 self_drive_ws에서 build 에러로 인해 법
 #        cartographer/mapping/3d/hybrid_grid_test.cc를 제거하였음
 #        (관련링크 : https://github.com/cartographer-project/cartographer/issues/1653)
+
+# 동적 파라미터 변동을 위해 nav2_costmap_2d 패키지를 일부 수정하였음.
+# (관련링크: https://github.com/ros-planning/navigation2/pull/2592)
+# (수정파일: costmap_2d_ros.cpp/hpp, inflation_layer.cpp/hpp)
 
 
 #####################################################################################################

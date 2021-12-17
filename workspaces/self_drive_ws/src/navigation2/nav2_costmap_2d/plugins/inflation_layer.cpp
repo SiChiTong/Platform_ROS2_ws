@@ -54,6 +54,9 @@ using nav2_costmap_2d::LETHAL_OBSTACLE;
 using nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
 using nav2_costmap_2d::NO_INFORMATION;
 
+using std::placeholders::_1;
+using rcl_interfaces::msg::ParameterType;
+
 namespace nav2_costmap_2d
 {
 
@@ -99,6 +102,8 @@ InflationLayer::onInitialize()
     node->get_parameter(name_ + "." + "cost_scaling_factor", cost_scaling_factor_);
     node->get_parameter(name_ + "." + "inflate_unknown", inflate_unknown_);
     node->get_parameter(name_ + "." + "inflate_around_unknown", inflate_around_unknown_);
+	dyn_params_handler = node->add_on_set_parameters_callback(
+			std::bind(&InflationLayer::dynamicParametersCallback, this, _1));
   }
 
   current_ = true;
@@ -108,6 +113,36 @@ InflationLayer::onInitialize()
   need_reinflation_ = false;
   cell_inflation_radius_ = cellDistance(inflation_radius_);
   matchSize();
+}
+
+rcl_interfaces::msg::SetParametersResult InflationLayer::dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters)
+{
+	auto result = rcl_interfaces::msg::SetParametersResult();
+
+	for (const auto &parameter: parameters) {
+		const auto &type = parameter.get_type();
+		const auto &name = parameter.get_name();
+
+		if (type == ParameterType::PARAMETER_DOUBLE) {
+			if (name == name_ + "." + "inflation_radius") {
+				inflation_radius_ = parameter.as_double();
+				cell_inflation_radius_ = cellDistance(inflation_radius_);
+				computeCaches();
+
+				{
+					auto node = node_.lock();
+					if (!node) {
+						throw std::runtime_error{"Failed to lock node"};
+					}
+
+					RCLCPP_INFO(node->get_logger(), "inflation_radius: %f", inflation_radius_);
+				}
+			}
+		}
+	}
+
+	result.successful = true;
+	return result;
 }
 
 void

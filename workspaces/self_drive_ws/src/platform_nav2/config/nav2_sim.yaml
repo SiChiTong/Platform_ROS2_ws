@@ -128,32 +128,6 @@ controller_server:
       xy_goal_tolerance: 0.10
       yaw_goal_tolerance: 0.10
 
-#    FollowPath:
-#      plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-#      desired_linear_vel: 0.2
-#      max_linear_accel: 2.5
-#      max_linear_decel: 2.5
-#      lookahead_dist: 0.6
-#      min_lookahead_dist: 0.3
-#      max_lookahead_dist: 0.9
-#      lookahead_time: 1.5
-#      rotate_to_heading_angular_vel: 0.6
-#      transform_tolerance: 0.04
-#      use_velocity_scaled_lookahead_dist: false
-#      min_approach_linear_velocity: 0.05
-#      use_approach_linear_velocity_scaling: true
-#      max_allowed_time_to_collision: 1.0
-#      use_regulated_linear_velocity_scaling: true
-#      use_cost_regulated_linear_velocity_scaling: false
-#      regulated_linear_scaling_min_radius: 0.9
-#      regulated_linear_scaling_min_speed: 0.25
-#      use_rotate_to_heading: true
-#      rotate_to_heading_min_angle: 0.785
-#      max_angular_accel: 1.0
-#      cost_scaling_dist: 0.3
-#      cost_scaling_gain: 1.0
-#      inflation_cost_scaling_factor: 3.0
-
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: True
@@ -383,7 +357,7 @@ planner_server:
     FollowPath:
       plugin: "nav2_smac_planner/SmacPlanner2D"
       tolerance: 0.3                      # tolerance for planning if unable to reach exact pose, in meters, for 2D node
-      downsample_costmap: true            # whether or not to downsample the map
+      downsample_costmap: false           # whether or not to downsample the map
       downsampling_factor: 2              # multiplier for the resolution of the costmap layer (e.g. 2 on a 5cm costmap would be 10cm)
       allow_unknown: true                 # allow traveling in unknown space
       max_iterations: 1000000             # maximum total iterations to search for before failing (in case unreachable), set to -1 to disable

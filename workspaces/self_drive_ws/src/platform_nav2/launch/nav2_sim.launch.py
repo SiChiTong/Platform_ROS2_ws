@@ -40,7 +40,7 @@ def generate_launch_description():
     turtlebot_launch_file_dir = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
     pkg_gazebo_ros = get_package_share_directory('gazebo_ros')
 
-    map_file = "map_house.yaml"
+    map_file = "map.yaml"
     map_dir = LaunchConfiguration('map_file',
                                   default=os.path.join(package_prefix, 'map', map_file))
 
@@ -48,7 +48,7 @@ def generate_launch_description():
     param_dir = LaunchConfiguration('params_file',
                                     default=os.path.join(package_prefix,'config',param_file_name))
 
-    nav_to_pose_bt_xml_file = "nav_platform.xml"
+    nav_to_pose_bt_xml_file = "nav_platform_new.xml"
     nav_to_pose_bt_xml = LaunchConfiguration('default_nav_to_pose_bt_xml',
                                  default=os.path.join(package_prefix, 'behavior_trees', nav_to_pose_bt_xml_file))
 
@@ -58,6 +58,7 @@ def generate_launch_description():
 
     visualization_bbox = LaunchConfiguration('visualization_bbox', default=True)
     visualization_map = LaunchConfiguration('visualization_map', default=False)
+    verbose = LaunchConfiguration('verbose', default=True)
 
     pkg_launch_file_dir = os.path.join(package_prefix, 'launch')
     rviz_config_file = os.path.join(package_prefix, 'rviz', 'platform_sim.rviz')
@@ -117,6 +118,7 @@ def generate_launch_description():
             'robot_base': "base_link",
             'visualization_map': visualization_map,
             'visualization_bbox': visualization_bbox,
+            'verbose': verbose
         }.items()
     )
 

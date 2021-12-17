@@ -42,15 +42,11 @@ from utils.torch_utils import load_classifier, select_device, time_sync
 import rclpy
 from rclpy.node import Node
 from pcd_manager.msg import RGBDImage, SerializedArray
-from pcd_manager.msg import Detection, DetectionResults
+from detect_button.msg import Detection, DetectionResults
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from std_msgs.msg import String
 from pydoc import locate
 from datetime import datetime
-
-
-#cls_dict = {'Person':0,'Door':1,'Stairs':2,'Chair':3,'Clock':4,'Window':5,'Bookcase':6,'Table':7,'Wastecontainer':8,'Whiteboard':9} 
-
 
 def plot_one_box(x, img, color=None, label=None, line_thickness=3):
     # Plots one bounding box on image img
@@ -207,7 +203,9 @@ class o3d_manager:
     def add_pcd_to_vis(self):
         if((not self.isinit) and (self.isVisualize)):
             self.vis.create_window("Test")
-            self.isinit = self.vis.add_geometry(self.pointcloud)
+            mesh = o3d.geometry.TriangleMesh.create_coordinate_frame(origin=[0.0, 0.0, 0.0], size=0.1)
+            self.isinit = self.vis.add_geometry(self.pointcloud) and \
+                          self.vis.add_geometry(mesh)
 
     def pcd_show(self, pcd, bbox=[]):
         self.copy_pcd(pcd)
@@ -269,6 +267,7 @@ class detection_node(Node):
             history=QoSHistoryPolicy.RMW_QOS_POLICY_HISTORY_KEEP_LAST,
             depth=1
         )
+
         self.sub_rgbd = self.create_subscription(RGBDImage, '/pcd_realsense', self.callback_rgbd, qos_profile)
 
         self.dict_result = {}
@@ -284,17 +283,14 @@ class detection_node(Node):
     def callback_cls(self, msg: std_msgs.msg.String):
         str_class = msg.data
         try:
-            button_info = self.dict_result[str_class]
-            center_x = int((button_info[0][0] + button_info[1][0]) / 2)
-            center_y = int((button_info[0][1] + button_info[1][1]) / 2)
-            depth = button_info[-1]
-            print(button_info)
-            self.pub_cls.publish(String(data=f"{center_x},{center_y},{depth}"))
+            target_x, target_y, target_z = self.dict_result[str_class]
+            msg_str = f"{target_x:.2f},{target_y:.2f},{target_z:.2f}"
+
+            self.print_info(msg_str)
+            self.pub_cls.publish(String(data=msg_str))
 
         except Exception as e:
             print(e)
-
-
 
     def callback_rgbd(self, msg: RGBDImage):
         dt0 = datetime.now()
@@ -317,31 +313,55 @@ class detection_node(Node):
             # result : [label, point_Left_Up, point_Right_Down, confidence]
 
             result = detect(self.device, self.model, img, self.names, self.colors,
-                            conf_thres=0.3, iou_thres=0.3, isVisualized=True)
-            #print("result:",result)
-
+                            imgsz=list(img.shape[0:2]), conf_thres=0.3, iou_thres=0.3, isVisualized=True)
             pcd_img = np.concatenate((pcd, img), axis=2)
+            img_size = pcd_img.shape[0]*pcd_img.shape[1]
 
-            for a in result:            # a : each result
-                r1, r2 = a[1], a[2]     # r1:point_Left_Up , r2:point_Right_Down  
-                center_x, center_y = int((r1[0]+r2[0])/2), int((r1[1]+r2[1])/2)
+            for a in result:
+                if a[0] == 'empty' or a[0] == 'unknown' or 'text_' in a[0]:
+                    continue
+
+                r1, r2 = a[1], a[2]
                 pcd_img_bbox = pcd_img[r1[1]:r2[1], r1[0]:r2[0], ...]
-                ab = ~np.isnan(pcd_img_bbox.reshape([-1, 6]))[:,0]
-                aab = pcd_img_bbox.reshape([-1, 6])[ab]
+                pcd_np = pcd_img_bbox.reshape([-1, 6])
+                pcd_nan = ~np.isnan(pcd_np)[:,0]
+                pcd_inf = ~np.isinf(pcd_np)[:,0]
+                pcd_btm = np.where(pcd_np[:, 1] > -0.68, True, False)
+                aac = np.logical_and(np.logical_and(pcd_nan, pcd_inf), pcd_btm)
+                aab = pcd_img_bbox.reshape([-1, 6])[aac]
 
                 try:
-                    ratio_nan = (np.size(ab) - np.count_nonzero(ab)) / np.size(ab)
+                    # ratio_nan = (np.size(aac) - np.count_nonzero(aac)) / np.size(aac)
                     # if(ratio_nan>0.8): raise Exception("Too many Nan value..(skip)")
 
-                    point_pcd_np = aab[:, 0:3]
-                    color_pcd_np = (aab[:, 3:6] / 255.0)[..., ::-1]
+                    pcd_size = aab.shape[0]
+                    bbox_ratio = pcd_size / img_size
+                    downsample_rate = 0.1
+
+                    if(bbox_ratio > 0.3):
+                        downsample_rate *= 0.25
+                    elif(bbox_ratio > 0.2):
+                        downsample_rate *= 0.4
+                    elif (bbox_ratio > 0.1):
+                        downsample_rate *= 0.7
+                    elif (bbox_ratio < 0.05):
+                        downsample_rate *= 1.5
+                    elif (bbox_ratio < 0.02):
+                        downsample_rate *= 3.0
+                    elif (bbox_ratio < 0.01):
+                        downsample_rate *= 5.0
+
+                    if downsample_rate > 1: downsample_rate = 1
+
+                    pcd_down = aab[np.random.choice(pcd_size, round(pcd_size * downsample_rate), replace=False)]
+                    point_pcd_np = pcd_down[:, 0:3]
+                    color_pcd_np = (pcd_down[:, 3:6] / 255.0)[..., ::-1]
 
                     pcd_bbox = o3d.geometry.PointCloud()
 
                     pcd_bbox.points = o3d.utility.Vector3dVector(point_pcd_np)
                     pcd_bbox.colors = o3d.utility.Vector3dVector(color_pcd_np)
 
-                    pcd_bbox = pcd_bbox.random_down_sample(sampling_ratio=0.1)
                     labels = np.asarray(pcd_bbox.cluster_dbscan(eps=0.2, min_points=8, print_progress=False))
                     labels_count = np.bincount(labels + 1)
                     label_sort = np.argsort(labels_count)[::-1] - 1
@@ -359,30 +379,11 @@ class detection_node(Node):
 
                     pcd_result_np = pcd_max
 
-                    ##
-                    #pcd_max_mean = np.mean(pcd_max,axis=0)
-                    #pcd_second_mean = np.mean(pcd_second,axis=0)
-                    #sqrt(x*x + y*y + z*z)
-                    #pcd_max_dist =  math.sqrt(pcd_max_mean[0] * pcd_max_mean[0] +
-                    #                          pcd_max_mean[1] * pcd_max_mean[1] +
-                    #                          pcd_max_mean[2] * pcd_max_mean[2])
-                       #
-                    #pcd_second_dist =  math.sqrt(pcd_second_mean[0] * pcd_second_mean[0] +
-                    #                             pcd_second_mean[1] * pcd_second_mean[1] +
-                    #                             pcd_second_mean[2] * pcd_second_mean[2])
-                    #if (pcd_max_dist > pcd_second_dist):
-                    #    pcd_result_np = pcd_second
-                    #else:
-                    #    pcd_result_np = pcd_max
-                    ###
-
                     pcd_result = o3d.geometry.PointCloud()
                     pcd_result_color = (np.asarray(self.colors[self.names.index(a[0])]) / 255.0)[::-1]
 
                     pcd_result.points = o3d.utility.Vector3dVector(pcd_result_np)
                     pcd_result.paint_uniform_color(pcd_result_color)
-                    mean_depth = int(abs(np.mean(pcd_result_np[:,2]))*1000)
-                    #print("pcd_result_np :",mean_depth)
 
                     pcd_result_3d_bbox = pcd_result.get_axis_aligned_bounding_box()
                     pcd_result_3d_bbox.color = pcd_result_color
@@ -390,25 +391,20 @@ class detection_node(Node):
                     pcd_total += pcd_result
                     bbox_total.append(pcd_result_3d_bbox)
 
-                    #cv2.rectangle(pcd, (center_x-2,center_y-2), (center_x+2,center_y+2), (0,0,255),1)
-                    #cv2.rectangle(pcd, r1, r2, (0,0,255),1)
-                    #cv2.imshow("pcd_img",pcd)
-                    #cv2.waitKey(1)
+                    maxb_x = float(-pcd_result_3d_bbox.max_bound[2])
+                    maxb_y = float(-pcd_result_3d_bbox.max_bound[0])
+                    maxb_z = float( pcd_result_3d_bbox.max_bound[1])
 
-                    #msg_detection = Detection()
-                    #msg_detection.cls  = a[0]
-                    #msg_detection.conf = a[3]
-                    #msg_detection.center_x = center_x
-                    #msg_detection.center_y = center_y
-                    #msg_detection.depth = mean_depth
+                    minb_x = float(-pcd_result_3d_bbox.min_bound[2])
+                    minb_y = float(-pcd_result_3d_bbox.min_bound[0])
+                    minb_z = float( pcd_result_3d_bbox.min_bound[1])
 
-                    #detection_result.append(msg_detection)
-                    #print([msg_detection])
+                    target_x = (maxb_x + minb_x) / 2 * 1000.0
+                    target_y = (maxb_y + minb_y) / 2 * 1000.0
+                    target_z = (maxb_z + minb_z) / 2 * 1000.0
+                    # unit : mm
 
-                    info = a[1::].copy()
-                    info.append(mean_depth)
-
-                    self.dict_result[a[0]] = info
+                    self.dict_result[a[0]] = [target_x, target_y, target_z]
 
                 except Exception as e:
                     print(traceback.format_exc())

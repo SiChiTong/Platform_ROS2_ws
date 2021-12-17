@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package>
+    <DisplayName>PlotJuggler Main App</DisplayName>
+    <Description>Install PlotJuggler with basic plugins.</Description>
+    <Version>3.0.7</Version>
+    <ReleaseDate>2021-01-28</ReleaseDate>
+    <Licenses>
+        <License name="LGPL" file="license.txt" />
+    </Licenses>
+    <Default>script</Default>
+    <Script>installscript.qs</Script>
+</Package>
+
