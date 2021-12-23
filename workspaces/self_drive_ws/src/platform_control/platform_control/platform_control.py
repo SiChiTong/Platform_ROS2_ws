@@ -28,15 +28,12 @@ except ModuleNotFoundError:
 
 sudoPassword = 'as449856'
 
-PORT_mbed = find_mbed_port(sudoPassword)
-
 class PlatformControlNode(Node):
     # ---------------------------------- init ---------------------------------- #
     def __init__(self, port: str):
         super().__init__('platform_node')
 
         self.declare_parameter('mode',"NAVIGATION")
-        #
         self.ser = self.connect_ser(port)
         self.isRealPlatform = True
 
@@ -52,7 +49,9 @@ class PlatformControlNode(Node):
 
         self.timer_period = 0.01  # seconds
 
-        self.timer = self.create_timer(self.timer_period, self.timer_callback, clock=self.get_clock())
+        self.timer = self.create_timer(self.timer_period,
+                                       self.timer_callback,
+                                       clock=self.get_clock())
 
     # 시리얼 포트 초기화
     def connect_ser(self, PORT: str):
@@ -64,6 +63,7 @@ class PlatformControlNode(Node):
             try:
                 # 시리얼 통신 포트 열기
                 ser = serial.serial_for_url(PORT, baudrate=115200, timeout=1)
+                PORT = find_mbed_port(sudoPassword)
                 isconnect = True
             except:
                 count_connection += 1
@@ -281,24 +281,29 @@ class PlatformControlNode(Node):
 
     # ---------------------------------- main ---------------------------------- #
     def timer_callback(self):
-
         # 프로토콜 디코드
         try:
-            dict_str = self.protocol_decode(self.ser.read_all().decode())
+            dict_dr = self.protocol_decode(self.ser.read_all().decode())
         except Exception as e:
             self.print_info(f"decode_error: {e}")
             return
 
         # 디코드가 정상적으로 이루어졌는지 확인
-        if  (dict_str is None) or not (("VX" in dict_str) & ("VY" in dict_str) & ("Y" in dict_str)):
+        if  (dict_dr is None) or \
+            not (("VX" in dict_dr) & ("VY" in dict_dr) & ("Y" in dict_dr)):
             return
 
-        # IMU를 통한 Yaw 계산
-        yaw_encoder = dict_str['Y'] / 180.0 * math.pi
+        # 데드레코닝 관련 변수 초기화
+        vx_dr = dict_dr["VX"]
+        vy_dr = dict_dr["VY"]
 
-        if (hasattr(self, "pipe_t265")) & (dict_str.__len__() > 3):
+        # IMU를 통한 Yaw 계산
+        yaw_encoder = dict_dr['Y'] / 180.0 * math.pi
+
+        # T265 초기화가 이루어졌는지 확인
+        if (hasattr(self, "pipe_t265")) & (dict_dr.__len__() > 3):
             # T265 휠 오도메트리 기능 동작을 위해 하위 제어기에서 계산한 속도 데이터 송신
-            self.send_t265_odom(dict_str["VX"],dict_str["VY"])
+            self.send_t265_odom(vx_dr,vy_dr)
             # T265 주행기록계 데이터 수신
             vx_t265, vy_t265, x_t265, y_t265, yaw_t265 = self.get_pose_t265()
 
@@ -319,10 +324,12 @@ class PlatformControlNode(Node):
                 self.prev_yaw_t265 = yaw_t265
 
             # T265 카메라 주행기록계 데이터를 카메라 기준으로 보정해주는 작업
-            x_robot_t265, y_robot_t265, cur_vel_t265 = self.calculate_t265_to_robot_frame(x_t265, y_t265, vx_t265, vy_t265, d_yaw_t265, yaw_t265)
+            x_robot_t265, y_robot_t265, cur_vel_t265 = self.calculate_t265_to_robot_frame(x_t265, y_t265,
+                                                                                          vx_t265, vy_t265,
+                                                                                          d_yaw_t265, yaw_t265)
 
             # 데이터를 ROS2 메시지 형태로 변환하는 작업
-            cur_vel_encoder = self.get_twist(dict_str['VX'], dict_str['VY'], d_yaw_encoder)
+            cur_vel_encoder = self.get_twist(vx_dr, vy_dr, d_yaw_encoder)
 
             # 앞에서 계산한 하위제어기, T265의 속도 데이터를 이용하여 플랫폼 위치를 추정하는 작업
             self.calculate_x_y_raw(cur_vel_t265, cur_vel_encoder, yaw_t265, yaw_t265, dt)
@@ -992,10 +999,10 @@ class PlatformControlNode(Node):
     def callback_target_yaw_cleaning(self, msg: Float32):
         self.target_yaw = msg.data
 
-
 def main(args=None):
     rclpy.init(args=args)
     # 포트 설정
+    PORT_mbed = find_mbed_port(sudoPassword)
     node = PlatformControlNode(PORT_mbed)
 
     rclpy.spin(node)
