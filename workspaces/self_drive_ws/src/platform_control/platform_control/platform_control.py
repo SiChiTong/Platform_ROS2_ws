@@ -26,7 +26,7 @@ try:
 except ModuleNotFoundError:
     from .submodules.tools import *
 
-sudoPassword = 'as449856'
+sudoPassword = '1234'
 
 class PlatformControlNode(Node):
     # ---------------------------------- init ---------------------------------- #
@@ -230,25 +230,25 @@ class PlatformControlNode(Node):
 
     # 피드백 관련 파라미터 초기화
     def init_feedback(self):
-        P_gain_vx = 1.0
-        I_gain_vx = 0
-        D_gain_vx = 0
+        P_gain_vx = 0.2
+        I_gain_vx = 0.01
+        D_gain_vx = 0.04
 
-        P_gain_vy = 1.0
-        I_gain_vy = 0
-        D_gain_vy = 0
+        P_gain_vy = 0.2
+        I_gain_vy = 0.01
+        D_gain_vy = 0.04
 
-        P_gain_dyaw = 0.3
-        I_gain_dyaw = 0
-        D_gain_dyaw = 0
+        P_gain_dyaw = 0.0
+        I_gain_dyaw = 0.01
+        D_gain_dyaw = 0.01
 
         P_gain_yaw = 1.0
         I_gain_yaw = 0.05
         D_gain_yaw = 2.0
 
-        self.vx_feedback = PID_manager(P_gain_vx, I_gain_vx, D_gain_vx, cmd_threshold=0.05, I_threshold=0.02)
-        self.vy_feedback = PID_manager(P_gain_vy, I_gain_vy, D_gain_vy, cmd_threshold=0.05, I_threshold=0.02)
-        self.dyaw_feedback = PID_manager(P_gain_dyaw, I_gain_dyaw, D_gain_dyaw, cmd_threshold=0.05, I_threshold=0.02)
+        self.vx_feedback = PID_manager(P_gain_vx, I_gain_vx, D_gain_vx, cmd_threshold=0.05, I_threshold=0.05)
+        self.vy_feedback = PID_manager(P_gain_vy, I_gain_vy, D_gain_vy, cmd_threshold=0.05, I_threshold=0.05)
+        self.dyaw_feedback = PID_manager(P_gain_dyaw, I_gain_dyaw, D_gain_dyaw, cmd_threshold=0.05, I_threshold=0.05)
 
         self.yaw_feedback = PID_manager(P_gain_yaw, I_gain_yaw, D_gain_yaw, cmd_threshold=0.1, I_threshold=0.1)
 
@@ -259,9 +259,9 @@ class PlatformControlNode(Node):
         self.listener.start()
 
     # T265 wheel odometry 기능 초기화
-    # wheel odometry: IMU + 엔코더로 위치 추정 함께 진행하는 경우 해당 정보를
-    #                 T265 측으로 송신하면 위치 추정 성능이 개선됨.
     def load_t265_wheelodom_config(self, profile, json_path: str):
+        # wheel odometry: IMU + 엔코더로 위치 추정 함께 진행하는 경우 해당 정보를
+        #                 T265 측으로 송신하면 위치 추정 성능이 개선됨.
         dev = profile.get_device()
         tm2 = dev.as_tm2()
 
@@ -280,6 +280,7 @@ class PlatformControlNode(Node):
         return wheel_odometer
 
     # ---------------------------------- main ---------------------------------- #
+
     def timer_callback(self):
         # 프로토콜 디코드
         try:
@@ -298,7 +299,7 @@ class PlatformControlNode(Node):
         vy_dr = dict_dr["VY"]
 
         # IMU를 통한 Yaw 계산
-        yaw_encoder = dict_dr['Y'] / 180.0 * math.pi
+        yaw_dr = dict_dr['Y'] / 180.0 * math.pi
 
         # T265 초기화가 이루어졌는지 확인
         if (hasattr(self, "pipe_t265")) & (dict_dr.__len__() > 3):
@@ -315,12 +316,22 @@ class PlatformControlNode(Node):
             dt = self.calculate_dt()
 
             # 각속도 계산
-            if hasattr(self,"prev_yaw_encoder"):
-                d_yaw_encoder = (yaw_encoder - self.prev_yaw_encoder) / dt
-                self.prev_yaw_encoder = yaw_encoder
+            if hasattr(self, "prev_yaw_encoder"):
+                d_yaw_encoder = (yaw_dr - self.prev_yaw_encoder)
+                if d_yaw_encoder >= math.pi:
+                    d_yaw_encoder -= 2 * math.pi
+                elif d_yaw_encoder <= -math.pi:
+                    d_yaw_encoder += 2 * math.pi
+                d_yaw_encoder = d_yaw_encoder / dt
+                self.prev_yaw_encoder = yaw_dr
 
-            if hasattr(self,"prev_yaw_t265"):
-                d_yaw_t265 = (yaw_t265 - self.prev_yaw_t265) / dt
+            if hasattr(self, "prev_yaw_t265"):
+                d_yaw_t265 = (yaw_t265 - self.prev_yaw_t265)
+                if d_yaw_t265 >= math.pi:
+                    d_yaw_t265 -= 2 * math.pi
+                elif d_yaw_t265 <= -math.pi:
+                    d_yaw_t265 += 2 * math.pi
+                d_yaw_t265 = d_yaw_t265 / dt
                 self.prev_yaw_t265 = yaw_t265
 
             # T265 카메라 주행기록계 데이터를 카메라 기준으로 보정해주는 작업
@@ -332,7 +343,7 @@ class PlatformControlNode(Node):
             cur_vel_encoder = self.get_twist(vx_dr, vy_dr, d_yaw_encoder)
 
             # 앞에서 계산한 하위제어기, T265의 속도 데이터를 이용하여 플랫폼 위치를 추정하는 작업
-            self.calculate_x_y_raw(cur_vel_t265, cur_vel_encoder, yaw_t265, yaw_t265, dt)
+            self.calculate_x_y_raw(self.cur_vel_t265_LPF, cur_vel_encoder, yaw_t265, yaw_t265, dt)
 
             # T265와 하위제어기에서 추정한 위치 데이터를 보정하는 작업
             self.sensor_fusion(x_robot_t265, y_robot_t265, self.x_encoder, self.y_encoder, yaw_t265)
@@ -362,18 +373,15 @@ class PlatformControlNode(Node):
                     self.pub_cmd_LPF.publish(self.cmd_vel_LPF)
                     self.pub_cmd_cleaning.publish(cmd_vel_cleaning)
                 else:
-                    cmd_vel_FB = self.calculate_feedback(self.cmd_vel_LPF,cur_vel_t265,dt)
-                    # cmd_vel_FB = self.cmd_vel_LPF
-                    self.command_vel(cmd_vel_FB)
+                    cmd_vel_FB = self.calculate_feedback(self.cmd_vel_LPF, self.cur_vel_t265_LPF, dt)
+                    self.command_vel(cmd_vel_FB,k=1.0)
+                    #cmd_vel_FB = self.cmd_vel_LPF
+                    #self.command_vel(cmd_vel_FB,k=0.9)
+
                     self.pub_cmd_LPF.publish(cmd_vel_FB)
-                    self.pub_e_vx.publish(Float32(data=cmd_vel_FB.linear.x - cur_vel_t265.linear.x))
-                    self.pub_e_vy.publish(Float32(data=cmd_vel_FB.linear.y - cur_vel_t265.linear.y))
-                    self.pub_e_dyaw.publish(Float32(data=cmd_vel_FB.angular.z - cur_vel_t265.angular.z))
-                    # self.command_vel(self.cmd_vel_LPF)
-                    # self.pub_cmd_LPF.publish(self.cmd_vel_LPF)
-                    #
-                    # self.pub_vx.publish(Float32(data=self.cmd_vel_LPF.linear.x))
-                    # self.pub_vy.publish(Float32(data=self.cmd_vel_LPF.linear.y))
+                    self.pub_e_vx.publish(Float32(data=self.cmd_vel_LPF.linear.x - self.cur_vel_t265_LPF.linear.x))
+                    self.pub_e_vy.publish(Float32(data=self.cmd_vel_LPF.linear.y - self.cur_vel_t265_LPF.linear.y))
+                    self.pub_e_dyaw.publish(Float32(data=self.cmd_vel_LPF.angular.z - self.cur_vel_t265_LPF.angular.z))
 
     # ---------------------------------- main ---------------------------------- #
 
@@ -542,6 +550,15 @@ class PlatformControlNode(Node):
         vy_robot = vy_t265 + L * d_yaw_t265
 
         cur_vel = self.get_twist(vx_robot, vy_robot, d_yaw_t265)
+
+        if(not hasattr(self,'cur_vel_t265_LPF')):
+            self.cur_vel_t265_LPF = self.get_twist(0.0,0.0,0.0)
+
+        k_linear = 0.95
+        k_angular =0.99
+        self.cur_vel_t265_LPF.linear.x = k_linear * self.cur_vel_t265_LPF.linear.x + (1 - k_linear) * cur_vel.linear.x
+        self.cur_vel_t265_LPF.linear.y = k_linear * self.cur_vel_t265_LPF.linear.y + (1 - k_linear) * cur_vel.linear.y
+        self.cur_vel_t265_LPF.angular.z = k_angular * self.cur_vel_t265_LPF.angular.z + (1 - k_angular) * cur_vel.angular.z
 
         return x_robot, y_robot, cur_vel
 
@@ -963,13 +980,13 @@ class PlatformControlNode(Node):
     def callback_cmd(self, msg : Twist):
         if(self.mode == cmd_mode.NAVIGATION):
             self.cmd_vel = msg
-
+            k = 0.2
             if((self.cmd_vel_LPF.linear.x == 0)):
                 self.cmd_vel_LPF = msg
             else:
-                self.cmd_vel_LPF.linear.x = 0.9 * self.cmd_vel_LPF.linear.x + 0.1 * self.cmd_vel.linear.x
-                self.cmd_vel_LPF.linear.y = 0.9 * self.cmd_vel_LPF.linear.y + 0.1 * self.cmd_vel.linear.y
-                self.cmd_vel_LPF.angular.z = 0.9 * self.cmd_vel_LPF.angular.z + 0.1 * self.cmd_vel.angular.z
+                self.cmd_vel_LPF.linear.x = k * self.cmd_vel_LPF.linear.x + (1 - k) * self.cmd_vel.linear.x
+                self.cmd_vel_LPF.linear.y = k * self.cmd_vel_LPF.linear.y + (1 - k) * self.cmd_vel.linear.y
+                self.cmd_vel_LPF.angular.z = k * self.cmd_vel_LPF.angular.z + (1 - k) * self.cmd_vel.angular.z
 
                 if (self.cmd_vel.linear.x == 0.0): self.cmd_vel_LPF.linear.x = 0.0
                 if (self.cmd_vel.linear.y == 0.0): self.cmd_vel_LPF.linear.y = 0.0
