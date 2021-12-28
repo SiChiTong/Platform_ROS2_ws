@@ -288,6 +288,5 @@ def main():
         if k == 27:
             break
 
-
 if __name__ == '__main__':
     main()

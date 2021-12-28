@@ -113,8 +113,8 @@ def create_pose_from_x_y_yaw(x, y, yaw, clock: rclpy.node.Clock):
     q = quaternion_from_euler(0, 0, yaw)
     pose.pose.orientation.w = q[0]
     pose.pose.orientation.x = q[1]
-    pose.pose.orientation.x = q[2]
-    pose.pose.orientation.x = q[3]
+    pose.pose.orientation.y = q[2]
+    pose.pose.orientation.z = q[3]
     return pose
 
 class platformNavigator(BasicNavigator):

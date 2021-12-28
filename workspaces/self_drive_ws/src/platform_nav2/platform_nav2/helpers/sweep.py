@@ -27,8 +27,6 @@ def sweep(vertexes, width, step=None, safeWidth=None, thresh_last_step=None):
     longestEdge.setToInfinite()
 
     intersections = []
-    # intersections.append(vertexes[maxIndex])
-    # intersections.append(vertexes[(maxIndex + 1) % len(vertexes)])
 
     direct = 0
     for vertex in vertexes:
@@ -53,7 +51,11 @@ def sweep(vertexes, width, step=None, safeWidth=None, thresh_last_step=None):
     if (safeWidth != None) and (thresh_last_step != None):
         safe_width_sweep = safeWidth
         longestEdge = longestEdge.shift(-WIDTH)
-        dist_edge_vertices = round(edges[0].maxY - longestEdge.getIntersection(edges[0]).y)
+        
+        if edges[0].vertical:
+            dist_edge_vertices = round(edges[0].maxY - longestEdge.getIntersection(edges[0]).y)
+        else:
+            dist_edge_vertices = round(edges[0].maxX - longestEdge.getIntersection(edges[0]).x)
 
         if (safe_width_sweep > 0) and (dist_edge_vertices > WIDTH * thresh_last_step):
             longestEdge = longestEdge.shift(dist_edge_vertices)

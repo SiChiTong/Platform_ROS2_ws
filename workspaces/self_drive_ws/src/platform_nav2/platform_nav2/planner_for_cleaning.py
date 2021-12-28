@@ -98,6 +98,9 @@ def find_sweep_path(map, approxes, visualize=False, threshold_last_step = None):
 
     x_limit_lower = min([pt[0] for pt in polygons[0]])
     x_limit_upper = max([pt[0] for pt in polygons[0]])
+    
+    if polygons.__len__() != 1:
+        return None
 
     # boundary_basic certex order
     boundary_basic = [[x_limit_lower, y_limit_lower], [x_limit_upper, y_limit_lower], [x_limit_upper, y_limit_upper], [x_limit_lower, y_limit_upper]]
