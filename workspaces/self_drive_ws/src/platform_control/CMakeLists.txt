@@ -34,8 +34,6 @@ set(DIRECTORIES_TARGET
   bash
   config
   launch
-  map
-  param_nav
   rviz
   )
 
