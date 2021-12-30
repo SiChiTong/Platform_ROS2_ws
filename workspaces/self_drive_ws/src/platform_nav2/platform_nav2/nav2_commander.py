@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 import math
-
 import rclpy
 import rclpy.timer
 import numpy as np
@@ -96,7 +95,7 @@ def main():
         # 청소 종료 명령을 내린 경우 멈춤
         check_stop_cleaning(navigator)
 
-        # 웨이포인트, 로봇 위치 업데이트
+        # 로봇 위치 업데이트
         navigator.update_map_data()
 
         # 맵 데이터 이미지로 불러오기
