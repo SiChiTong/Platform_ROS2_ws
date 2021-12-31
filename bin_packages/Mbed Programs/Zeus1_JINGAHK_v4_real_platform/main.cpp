@@ -1,4 +1,3 @@
-
 #include "mbed.h"
 #include "SerialStream.h"
 
@@ -48,11 +47,21 @@
 #define BRK_RB PB_1
 #define PLS_RB PE_5
 
-#define WATER PG_3
+#define WATER_A PG_3
+#define WATER_B PD_1
+#define WATER_PWM PE_11
 
-#define BRUSH PG_2
+#define SOL_WATER PA_12
+
+#define BRUSH_A PG_2
+#define BRUSH_B PA_4
+#define BRUSH_PWM PE_9
+
+#define VACUUM_1 PH_0
+#define VACUUM_2 PH_1
 
 #define PPM_DECODE PG_1
+
 
 #define Dt 0.1
 #define Dt_uart 0.01
@@ -67,10 +76,10 @@
 #define RPM_TO_RAD_P_SEC 0.10472
 #define RAD_TO_RPM_P_SEC 9.5493
 
-DigitalOut Dir_LF(DIR_LF);  //Dir_LF = 0;(Forward) Dir_LF = 1;(Backward)
-DigitalOut Dir_RF(DIR_RF);  //Dir_RF = 1;(Forward) Dir_RF = 0;(Backward)
-DigitalOut Dir_LB(DIR_LB);  //Dir_LB = 0;(Forward) Dir_LB = 1;(Backward)
-DigitalOut Dir_RB(DIR_RB);  //Dir_RB = 1;(Forward) Dir_RB = 0;(Backward)
+DigitalOut Dir_LF(DIR_LF);  //Dir_LF = 1;(Forward) Dir_LF = 0;(Backward)
+DigitalOut Dir_RF(DIR_RF);  //Dir_RF = 0;(Forward) Dir_RF = 1;(Backward)
+DigitalOut Dir_LB(DIR_LB);  //Dir_LB = 1;(Forward) Dir_LB = 0;(Backward)
+DigitalOut Dir_RB(DIR_RB);  //Dir_RB = 0;(Forward) Dir_RB = 1;(Backward)
 
 DigitalOut Brk_LF(BRK_LF);
 DigitalOut Brk_RF(BRK_RF);
@@ -94,8 +103,18 @@ InterruptIn Pls_RB(PLS_RB);
 
 DigitalOut LED(LED1);
 
-DigitalOut Brush(BRUSH);
-DigitalOut Water(WATER);
+DigitalOut Brush_A(BRUSH_A);
+DigitalOut Brush_B(BRUSH_B);
+PwmOut BRUSH(BRUSH_PWM);
+
+DigitalOut Water_A(WATER_A);
+DigitalOut Water_B(WATER_B);
+PwmOut WATER(WATER_PWM);
+
+DigitalOut Solenoid(SOL_WATER);
+
+DigitalOut Vacuum_1(VACUUM_1);
+DigitalOut Vacuum_2(VACUUM_2);
 
 InterruptIn PPM(PPM_DECODE);
 
@@ -174,7 +193,7 @@ void Check_FallingEdge_RB();
 
 void Check_Mode();
 
-void Check_Br_W();
+void Check_Br_W_V();
 
 void Move(float T_vx, float T_vy, float T_yaw_vel);
 
@@ -256,6 +275,7 @@ bool flag_change1 = false, flag_change2 = true;
 
 bool Flag_Br = false;
 bool Flag_W = false;
+bool Flag_V = false;
 
 int main()
 {
@@ -273,6 +293,18 @@ int main()
     Srt_RF = 1;
     Srt_LB = 1;
     Srt_RB = 1;
+    Brush_A = 1;
+    Brush_B = 0;
+    BRUSH.period_us(100);
+
+    Water_A = 1;
+    Water_B = 0;
+    WATER.period_us(100);
+
+    Vacuum_1 = 0;
+    Vacuum_2 = 0;
+
+    Solenoid = 0;
 
     Stop();
 
@@ -317,21 +349,41 @@ int main()
     }
 }
 
-void Check_Br_W()
+void Check_Br_W_V()
 {
-    if(Flag_Br == true) Brush = 1;
-    else if(Flag_Br == false) Brush = 0;
+    if(Flag_Br == true) BRUSH.pulsewidth_us(100);
+    else if(Flag_Br == false) BRUSH.pulsewidth_us(0);
 
-    if(Flag_W == true) Water = 1;
-    else if(Flag_W == false) Water = 0;
+    if(Flag_W == true) 
+    {
+        WATER.pulsewidth_us(27);
+        Solenoid = 1;
+    }
+    else if(Flag_W == false) 
+    {
+        WATER.pulsewidth_us(0);
+        Solenoid = 0;
+    }
+
+    if(Flag_V == true) 
+    {
+        Vacuum_1 = 1;
+        Vacuum_2 = 1;
+    }
+    else if(Flag_V == false)
+    {
+        Vacuum_1 = 0;
+        Vacuum_2 = 0;
+    }
 }
+
 
 void Go_F(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 {
-    Dir_LF = 0; // 정
-    Dir_RF = 1; // 정
-    Dir_LB = 0; // 정
-    Dir_RB = 1; // 정
+    Dir_LF = 1; // 정
+    Dir_RF = 0; // 정
+    Dir_LB = 1; // 정
+    Dir_RB = 0; // 정
 
     Do_PID_LF = true;
     Do_PID_RF = true;
@@ -345,8 +397,8 @@ void Go_F(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 }
 void Go_LF(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 {
-    Dir_RF = 1; // 정
-    Dir_LB = 0; // 정
+    Dir_RF = 0; // 정
+    Dir_LB = 1; // 정
 
     Do_PID_LF = false;
     Do_PID_RF = true;
@@ -360,8 +412,8 @@ void Go_LF(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 }
 void Go_RF(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 {
-    Dir_LF = 0; // 정
-    Dir_RB = 1; // 정
+    Dir_LF = 1; // 정
+    Dir_RB = 0; // 정
 
     Do_PID_LF = true;
     Do_PID_RF = false;
@@ -375,8 +427,8 @@ void Go_RF(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 }
 void Go_RB(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 {
-    Dir_RF = 0; // 역
-    Dir_LB = 1; // 역
+    Dir_RF = 1; // 역
+    Dir_LB = 0; // 역
 
     Do_PID_LF = false;
     Do_PID_RF = true;
@@ -399,10 +451,10 @@ void Stop()
 }
 void Go_L(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 {
-    Dir_LF = 1; // 역
-    Dir_RF = 1; // 정
-    Dir_LB = 0; // 정
-    Dir_RB = 0; // 역
+    Dir_LF = 0; // 역
+    Dir_RF = 0; // 정
+    Dir_LB = 1; // 정
+    Dir_RB = 1; // 역
 
     Do_PID_LF = true;
     Do_PID_RF = true;
@@ -416,10 +468,10 @@ void Go_L(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 }
 void Go_R(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 {
-    Dir_LF = 0; // 정
-    Dir_RF = 0; // 역
-    Dir_LB = 1; // 역
-    Dir_RB = 1; // 정
+    Dir_LF = 1; // 정
+    Dir_RF = 1; // 역
+    Dir_LB = 0; // 역
+    Dir_RB = 0; // 정
 
     Do_PID_LF = true;
     Do_PID_RF = true;
@@ -433,10 +485,10 @@ void Go_R(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 }
 void Go_B(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 {
-    Dir_LF = 1; // 역
-    Dir_RF = 0; // 역
-    Dir_LB = 1; // 역
-    Dir_RB = 0; // 역
+    Dir_LF = 0; // 역
+    Dir_RF = 1; // 역
+    Dir_LB = 0; // 역
+    Dir_RB = 1; // 역
 
     Do_PID_LF = true;
     Do_PID_RF = true;
@@ -450,8 +502,8 @@ void Go_B(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 }
 void Go_LB(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 {
-    Dir_LF = 1; // 역
-    Dir_RB = 0; // 역
+    Dir_LF = 0; // 역
+    Dir_RB = 1; // 역
 
     Do_PID_LF = true;
     Do_PID_RF = false;
@@ -465,10 +517,10 @@ void Go_LB(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 }
 void Turn_L(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 {
-    Dir_LF = 1; // 역
-    Dir_RF = 1; // 정
-    Dir_LB = 1; // 역
-    Dir_RB = 1; // 정
+    Dir_LF = 0; // 역
+    Dir_RF = 0; // 정
+    Dir_LB = 0; // 역
+    Dir_RB = 0; // 정
 
     Do_PID_LF = true;
     Do_PID_RF = true;
@@ -482,10 +534,10 @@ void Turn_L(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 }
 void Turn_R(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 {
-    Dir_LF = 0; // 정
-    Dir_RF = 0; // 역
-    Dir_LB = 0; // 정
-    Dir_RB = 0; // 역
+    Dir_LF = 1; // 정
+    Dir_RF = 1; // 역
+    Dir_LB = 1; // 정
+    Dir_RB = 1; // 역
 
     Do_PID_LF = true;
     Do_PID_RF = true;
@@ -499,15 +551,15 @@ void Turn_R(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 }
 void Go_CMD(float LF_Vel, float RF_Vel, float LB_Vel, float RB_Vel) //OK
 {
-    Dir_LF = Target_RPM_LF >= 0? 0 : 1;
-    Dir_RF = Target_RPM_RF >= 0? 1 : 0;
-    Dir_LB = Target_RPM_LB >= 0? 0 : 1;
-    Dir_RB = Target_RPM_RB >= 0? 1 : 0;
+    Dir_LF = Target_RPM_LF >= 0? 1 : 0;
+    Dir_RF = Target_RPM_RF >= 0? 0 : 1;
+    Dir_LB = Target_RPM_LB >= 0? 1 : 0;
+    Dir_RB = Target_RPM_RB >= 0? 0 : 1;    
 
-    Pwm_LF.pulsewidth_us(LF_Vel);
-    Pwm_RF.pulsewidth_us(RF_Vel);
-    Pwm_LB.pulsewidth_us(LB_Vel);
-    Pwm_RB.pulsewidth_us(RB_Vel);
+    Pwm_LF.pulsewidth_us(round(LF_Vel));
+    Pwm_RF.pulsewidth_us(round(RF_Vel));
+    Pwm_LB.pulsewidth_us(round(LB_Vel));
+    Pwm_RB.pulsewidth_us(round(RB_Vel));
 }
 
 void PID_AngleVel(string MotorName, float TargetRPM, float Kp, float Ki, float Kd)
@@ -572,17 +624,17 @@ void Move(float T_vx, float T_vy, float T_yaw_vel)
     Target_RPM_CMD_LB = desired_LB * RAD_TO_RPM_P_SEC;
     Target_RPM_CMD_RB = desired_RB * RAD_TO_RPM_P_SEC;
 
-    if(Target_RPM_CMD_LF > 0) Dir_LF = 0;
-    else if(Target_RPM_CMD_LF < 0) Dir_LF = 1;
+    if(Target_RPM_CMD_LF > 0) Dir_LF = 1;
+    else if(Target_RPM_CMD_LF < 0) Dir_LF = 0;
 
-    if(Target_RPM_CMD_RF > 0) Dir_RF = 1;
-    else if(Target_RPM_CMD_RF < 0) Dir_RF = 0;
+    if(Target_RPM_CMD_RF > 0) Dir_RF = 0;
+    else if(Target_RPM_CMD_RF < 0) Dir_RF = 1;
 
-    if(Target_RPM_CMD_LB > 0) Dir_LB = 0;
-    else if(Target_RPM_CMD_LB < 0) Dir_LB = 1;
+    if(Target_RPM_CMD_LB > 0) Dir_LB = 1;
+    else if(Target_RPM_CMD_LB < 0) Dir_LB = 0;
 
-    if(Target_RPM_CMD_RB > 0) Dir_RB = 1;
-    else if(Target_RPM_CMD_RB < 0) Dir_RB = 0;
+    if(Target_RPM_CMD_RB > 0) Dir_RB = 0;
+    else if(Target_RPM_CMD_RB < 0) Dir_RB = 1;
 
     Pwm_LF.pulsewidth_us(Input_RPM_LF);
     Pwm_RF.pulsewidth_us(Input_RPM_RF);
@@ -728,6 +780,20 @@ void Get_MotorControl_Protocol()
                 Target_RPM_LB = For_Substitute;
                 Target_RPM_RB = For_Substitute;
                 Do_PID = true;
+            }
+        }
+        if(inputString_HC.find("V:") != -1) // 진공청소기
+        {
+            char For_Compare_char[20] = "";
+            char* For_Compare_char_After;
+            string Parsed_string = inputString_HC.substr(inputString_HC.find("V:") + 2, inputString_HC.find(';') - inputString_HC.find("V:") - 2);
+            memcpy(For_Compare_char, Parsed_string.c_str(), 20);
+
+            float For_Substitute = strtod(For_Compare_char, &For_Compare_char_After);
+            if(strcmp(For_Compare_char, For_Compare_char_After))
+            {
+                if(For_Substitute == 1) Flag_V = true;
+                else if(For_Substitute == 0) Flag_V = false;
             }
         }
         if(inputString_HC.find("B:") != -1)
@@ -1112,10 +1178,10 @@ void Get_Robot_Status()
 {
     // yaw = RPY_imu[2];
 
-    double pi_dot_1 = Dir_LF == 1 ? - RPM_LF_LPF * RPM_TO_RAD_P_SEC : RPM_LF_LPF * RPM_TO_RAD_P_SEC;
-    double pi_dot_2 = Dir_RF == 0 ? - RPM_RF_LPF * RPM_TO_RAD_P_SEC : RPM_RF_LPF * RPM_TO_RAD_P_SEC;
-    double pi_dot_3 = Dir_LB == 1 ? - RPM_LB_LPF * RPM_TO_RAD_P_SEC : RPM_LB_LPF * RPM_TO_RAD_P_SEC;
-    double pi_dot_4 = Dir_RB == 0 ? - RPM_RB_LPF * RPM_TO_RAD_P_SEC : RPM_RB_LPF * RPM_TO_RAD_P_SEC;
+    double pi_dot_1 = Dir_LF == 0 ? - RPM_LF_LPF * RPM_TO_RAD_P_SEC : RPM_LF_LPF * RPM_TO_RAD_P_SEC;
+    double pi_dot_2 = Dir_RF == 1 ? - RPM_RF_LPF * RPM_TO_RAD_P_SEC : RPM_RF_LPF * RPM_TO_RAD_P_SEC;
+    double pi_dot_3 = Dir_LB == 0 ? - RPM_LB_LPF * RPM_TO_RAD_P_SEC : RPM_LB_LPF * RPM_TO_RAD_P_SEC;
+    double pi_dot_4 = Dir_RB == 1 ? - RPM_RB_LPF * RPM_TO_RAD_P_SEC : RPM_RB_LPF * RPM_TO_RAD_P_SEC;
 
     vx = ((WHEEL_RADIUS + ROLLER_RADIUS) / 4) * (pi_dot_1 + pi_dot_2 + pi_dot_3 + pi_dot_4);
     vy = ((WHEEL_RADIUS + ROLLER_RADIUS) / 4) * ((-pi_dot_1) + pi_dot_2 + pi_dot_3 + (-pi_dot_4));
@@ -1180,12 +1246,12 @@ void Check_RisingEdge_LF()
 
 void Check_FallingEdge_LF()
 { 
-    if(flag_cnt_lf == true && Dir_LF == 0)
+    if(flag_cnt_lf == true && Dir_LF == 1)
     {
         cnt_lf++;
         flag_cnt_lf = false;
     }
-    else if(flag_cnt_lf == true && Dir_LF == 1)
+    else if(flag_cnt_lf == true && Dir_LF == 0)
     {
         cnt_lf--;
         flag_cnt_lf = false;
@@ -1197,12 +1263,12 @@ void Check_RisingEdge_RF()
 }
 void Check_FallingEdge_RF()
 {
-    if(flag_cnt_rf == true && Dir_RF == 0)
+    if(flag_cnt_rf == true && Dir_RF == 1)
     {
         cnt_rf++;
         flag_cnt_rf = false;
     }
-    else if(flag_cnt_rf == true && Dir_RF == 1)
+    else if(flag_cnt_rf == true && Dir_RF == 0)
     {
         cnt_rf--;
         flag_cnt_rf = false;
@@ -1214,12 +1280,12 @@ void Check_RisingEdge_LB()
 }
 void Check_FallingEdge_LB()
 {
-    if(flag_cnt_lb == true && Dir_LB == 0)
+    if(flag_cnt_lb == true && Dir_LB == 1)
     {
         cnt_lb++;
         flag_cnt_lb = false;
     }
-    else if(flag_cnt_lb == true && Dir_LB == 1)
+    else if(flag_cnt_lb == true && Dir_LB == 0)
     {
         cnt_lb--;
         flag_cnt_lb = true;
@@ -1231,12 +1297,12 @@ void Check_RisingEdge_RB()
 }
 void Check_FallingEdge_RB()
 {
-    if(flag_cnt_rb == true && Dir_RB == 0)
+    if(flag_cnt_rb == true && Dir_RB == 1)
     {
         cnt_rb++;
         flag_cnt_rb = false;
     }
-    else if(flag_cnt_rb == true && Dir_RB == 1)
+    else if(flag_cnt_rb == true && Dir_RB == 0)
     {
         cnt_rb--;
         flag_cnt_rb = true;
@@ -1451,10 +1517,11 @@ void Thread_Uart()
                                                                                     // ,Target_RPM_CMD_LF,Target_RPM_CMD_RF,Target_RPM_CMD_LB,Target_RPM_CMD_RB);
         // hc.printf("%d, %d, %d, %d\n",(int)I_LF, Input_RPM_LF, (int)Target_RPM_LF, (int)Target_RPM_CMD_LF);
         // hc.printf("%s, %s, %d, %d, %d, %.2f, %d, %d, %d, %d\n",asdf, asd, (int)I_LF, (int)Input_RPM_LF, (int)Target_RPM_CMD_LF, Target_vx, (int)Error_LF,flag_change1, flag_change2, flag_all);
-        printf("<VX:%.3f;VY:%.3f;DY:%.3f;Y:%.3f;Br:%d;W:%d;>\n",
-                    vx,vy,YAW_DOT,RPY_imu[2],Flag_Br,Flag_W);
+        // printf("<VX:%.3f;VY:%.3f;DY:%.3f;Y:%.3f;Br:%d;W:%d;>\n",
+        //             vx,vy,YAW_DOT,RPY_imu[2],Flag_Br,Flag_W);
         // hc.printf("%d, %d, %d, %d\n",flag_pc,flag_all,flag_change1,flag_change2);
-        
+        printf("<VX:%.3f;VY:%.3f;DY:%.3f;Y:%.3f;Br:%d;W:%d;V:%d;>\n",
+            vx,vy,YAW_DOT,RPY_imu[2],Flag_Br,Flag_W,Flag_V);
         working_uart_tick = Kernel::get_ms_count();
 
         ThisThread::sleep_until(Kernel::get_ms_count() + (Dt_uart * 1000 - (working_uart_tick - current_uart_tick)));
@@ -1467,8 +1534,11 @@ void Thread_Main()
     {
         current_main_tick = Kernel::get_ms_count();
 
+        Check_Br_W_V();
         Get_MotorControl_Protocol();
         Check_Mode();
+        Cal_AngVel();
+        Get_Robot_Status();
 
         if(flag_all == false)
         {
@@ -1521,15 +1591,13 @@ void Thread_Main()
         }
         if(ControlMode == "Controller") LED = 1;
         else if(ControlMode == "PC") LED = 0;
+        
         if(MotorMode == "S")
         {
             Stop();
             ALL_RESET();
-        }
-
-        Cal_AngVel();
-        Get_Robot_Status();
-        Check_Br_W();
+        }  
+        
 
         working_main_tick = Kernel::get_ms_count();
 
