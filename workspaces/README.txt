@@ -57,7 +57,7 @@ rosdep update
 # QT development library
 sudo apt-get install qtquickcontrols2-5-dev qtscript5-dev libqt5serialport5-dev qml-module-qtquick-controls2
 
-
+# optional, for object detection
 python3 -m pip install open3d cupoch
 
 #################################### ROS2 빌드 전 주의사항 ####################################
