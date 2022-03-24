@@ -11,7 +11,7 @@ bin_packages : 테스트용 패키지, Mbed 펌웨어, 기본 패키지 템플�
 
 <br/><br/>
 
-amd64 / ubuntu 18.04 LTS 기준 workspaces 빌드 테스트 진행 완료.
+amd64 / ubuntu 18.04, 20.04   기준 workspaces 빌드 테스트 진행 완료.
 
 aarch64 / Jetpack 4.6에서 빌드 실패, Jetpack 4.5.1에서 빌드 테스트 진행 완료.
 
