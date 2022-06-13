@@ -16,6 +16,7 @@
 #include <memory>
 
 // Node Name : laserscan_merger
+// source : https://github.com/iralabdisco/ira_laser_tools/blob/ros1-master/src/laserscan_multi_merger.cpp
 
 using namespace std;
 using namespace std::chrono_literals;
